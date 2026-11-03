@@ -3,15 +3,17 @@
 A PowerShell toolkit for learning Microsoft commands and administering Azure, Azure
 Virtual Desktop, and Microsoft 365.
 
-**Microsoft 365 safe mode:** option 3 / `cloudwright m365` permits only inspection and
-reporting. Tenant writes and GDAP approvals are disabled. Azure/AVD remains a separate,
-write-capable tool. Read [the safety boundary and upgrade instructions](docs/SAFETY.md)
-before signing in; use a reader account rather than Global Administrator.
+**Safe release:** option 3 / `cloudwright m365` permits inspection and reporting;
+Microsoft 365 mutation scripts and GDAP approval actions are blocked. Azure/AVD
+administration is disabled in the launcher and its console/GUI entry points.
+**Accepting a Microsoft consent prompt can still change tenant permission grants.**
+Use a reader account and decline organizational consent unless separately intended.
+Read [the safety boundary and upgrade instructions](docs/SAFETY.md) before signing in.
 
 ```powershell
 cloudwright                 # Choose an area
 cloudwright learn           # Build and understand commands
-cloudwright azure           # Manage Azure and AVD
+cloudwright azure           # Refused in this safe release
 cloudwright m365            # Inspect Microsoft 365 in read-only safe mode
 ```
 
@@ -88,8 +90,8 @@ discovery in future sessions. There is no PowerShell Gallery release at this sta
 | Command | Tool | First-use requirements |
 | --- | --- | --- |
 | `cloudwright learn` | Command builder from ms-scripter; explanations, verification/rollback examples, and offline study | PowerShell alone works; Azure/Graph lookup modules are optional |
-| `cloudwright azure` | Azure/AVD deployment, hosts, networking, storage, images, backup, and operations | Install `Az` and sign in to the intended tenant/subscription |
-| `cloudwright m365` | Exchange, Entra, GDAP, security, reporting, and onboarding/offboarding | Its existing first-use setup checks modules and prompts for local settings |
+| `cloudwright azure` | Azure/AVD administration; disabled in this safe release | Refuses before sign-in |
+| `cloudwright m365` | Exchange, Entra, GDAP, security and onboarding inspections/reports | First-use setup checks modules and prompts for local settings; mutation tasks are blocked |
 
 Windows opens each area's existing desktop interface by default. Other platforms
 use its console interface. `-Console` selects the text interface on Windows too:
@@ -97,26 +99,26 @@ use its console interface. `-Console` selects the text interface on Windows too:
 ```powershell
 cloudwright learn -Contoso -Console   # Fictional tenant; no connections
 cloudwright learn -Console -NoSignIn  # Type values without optional sign-in prompts
-cloudwright azure -Console
+cloudwright azure -Console           # Refused in this safe release
 cloudwright m365 -Console
 cloudwright m365 -Setup               # Revisit Microsoft 365 setup
 cloudwright help
 cloudwright version
 ```
 
-`cloudwright azure -WhatIf` previews the launcher entry point without opening it.
-Tenant-level dry runs remain inside the administrative tools and their task scripts.
+`cloudwright m365 -WhatIf` previews the launcher entry point without opening it.
+Azure administration is refused even with `-WhatIf`; M365 mutation scripts also refuse
+instead of running their legacy dry-run workflows.
 
-Azure also accepts `-TenantId <tenant-guid>` and `-SubscriptionId <subscription>`.
-Install its base dependency with `Install-Module Az -Scope CurrentUser`; individual
-areas may need additional modules described in their READMEs.
+Azure entry points are disabled in this release. Legacy scripts in `azure/` remain
+write-capable source and are outside the supported read-only interface.
 
 The top-level menu, help, and version do not sign in or install cloud dependencies.
 Each selected area runs in a fresh PowerShell process. In-memory sessions from your
 calling shell are not passed into it; its existing sign-in flow selects its context.
 
-Learn produces text and never executes generated commands. Azure keeps its existing
-context checks and `-WhatIf` behavior. Microsoft 365 adds a mandatory read-only policy
+Learn produces text and never executes generated commands. Executing those scripts
+elsewhere can change resources. Microsoft 365 adds a mandatory read-only policy
 in front of its legacy change-plan code. Installation does not run a tenant operation.
 
 ## Repository layout

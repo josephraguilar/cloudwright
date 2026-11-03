@@ -93,6 +93,7 @@ $ErrorActionPreference = 'Stop'
 if ($NoWait -and -not $PSBoundParameters.ContainsKey('Confirm')) { $ConfirmPreference = 'None' }
 $modules = Join-Path $PSScriptRoot '..' 'modules'
 Import-Module (Join-Path $modules 'M365Helpers' 'M365Helpers.psd1') -Force
+Assert-M365WriteAllowed   # Refuse legacy onboarding before sign-in or prompts.
 Import-Module (Join-Path $modules 'GdapHelpers' 'GdapHelpers.psd1') -Force
 $settings = Get-M365Settings
 if (-not $HomeTenantId) { $HomeTenantId = $settings.msp.homeTenantId }

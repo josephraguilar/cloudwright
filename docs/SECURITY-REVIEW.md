@@ -1,128 +1,131 @@
 # Cloudwright safety review
 
-Date: 2026-11-03. Baseline: `fbb7f367e129d363f6e609680be204703c22cf0a`.
+Date: 2026-11-03. Original baseline: `fbb7f367e129d363f6e609680be204703c22cf0a`.
 Candidate: version 0.2.0 on `safety/read-only-audit`.
 
-## Decision
+## Decision and scope
 
 **Do not treat this repository as approved for routine Global Administrator use.**
-The candidate makes Microsoft 365 (option 3) read-only for tenant operations. Azure
-administration remains write-capable. Local installation, settings, logs, and report
-exports can still write files. Learn only generates scripts; executing them elsewhere
-is outside its safety boundary.
+The supported Cloudwright interface permits Learn and Microsoft 365 inspection/reporting.
+Azure administration is blocked in the root launcher and its console/GUI entry points.
+The retained legacy Azure scripts/modules remain write-capable source; invoking them
+manually is outside the supported read-only interface. Learn generates text, and running
+that text elsewhere can change resources. Local setup, settings and report files can change.
 
-The primary review and the Fable 5.1 max-effort baseline review found concrete defects.
-Fable saved its report before its provider hit a usage limit. The requested Opus 5.5
-max-effort review of the candidate is pending; this is not an independent sign-off.
-Neither static analysis nor mocked tests prove the absence of every defect. See
-[SAFETY.md](SAFETY.md) for the security boundary and upgrade requirements.
+Microsoft 365 script/API mutations are blocked. **Accepting Microsoft's consent prompt
+can still create or extend tenant permission grants.** Consent is a separate administrator
+decision; decline organizational consent unless intended. See [SAFETY.md](SAFETY.md) for
+permissions, recovery from accidental consent, distribution trust and upgrade limits.
 
-## Implemented safeguards and corrections
+Fable 5.1 and Opus 5.5 reviewed at max effort. Fable reviewed the original baseline;
+Opus round r2 reviewed `54a9290` and found no reachable M365 tenant-write path, but rejected
+publication due to correctness defects and inadequate end-to-end test evidence. The
+changes below address those findings. A fresh Opus review of this revision is pending.
+This report is not an independent sign-off or a proof that every defect is absent.
 
-1. **Mandatory Microsoft 365 write refusal.** `M365Helpers/Safety.ps1` supplies a
-   constant read-only policy. `Invoke-M365Change` checks it before any preview,
-   confirmation, target override, or approval-plan processing. Direct scripts,
-   forged plans, `-WhatIf`, and `-Confirm:$false` cannot unlock writes. Hudu writes
-   and GDAP approval-page launches are also refused. A missing policy file fails
-   module initialization rather than falling through to the legacy implementation.
-2. **Restricted task dispatch.** The console and GUI admit 16 explicitly listed
-   read tasks. An AST check accepts one allowed script with literal arguments and
-   known parameter names; expressions, additional commands, redirection, and
-   arbitrary script paths are refused. GUI worker initialization uses literal
-   arguments and stops on initialization errors. Each GDAP read rechecks the partner
-   tenant instead of trusting a previous GUI sign-in.
-3. **Narrower authentication.** Graph requests an exact read-scope allowlist with
-   process-scoped authentication, rejects unknown/overprivileged context metadata,
-   and checks the returned tenant and scopes. Exchange imports an explicit read
-   cmdlet list and replaces connections not established under that policy. These
-   are application controls, not a reduction of a Global Administrator's actual
-   role. Real SDK behavior has not been verified against a tenant.
-4. **Safer generated PowerShell.** Learn now escapes PowerShell's typographic quote
-   delimiters, renders OData filters as escaped literals, restricts remaining raw
-   substitutions, and rejects multiline/comment-terminating context values. Its
-   Graph lookups reject broad sessions and cache results by tenant, subscription,
-   account, command, and parameters.
-5. **Azure directory cleanup disabled.** The original device query interpolated an
-   unescaped name and deleted every match. The lookup now validates and encodes the
-   name and verifies returned names. Both device and Kerberos application deletion
-   by display name are disabled, even with confirmation suppressed: a name cannot
-   establish ownership. Automatic cleanup and rejoin flows that relied on these
-   functions now stop or report skipped directory cleanup. Other Azure mutations
-   remain enabled.
-6. **Upgrade and example hygiene.** The bootstrap refuses cached snapshots without
-   the safe-mode baseline and preserves existing local settings. Install preflight
-   requires the policy file. The GDAP example's unexplained group GUID was replaced
-   with an explicitly fictional placeholder; no evidence established whether the
-   old value was real. The baseline marker is not a signature or integrity check.
+## What the candidate enforces
 
-## Findings and disposition
+- All 35 catalog write scripts and the GDAP onboarding entry point refuse before sign-in,
+  lookups or prompts. The shared mutation helper independently refuses before rendering,
+  plans, targets or confirmations. Direct calls, manual targets, forged plans, `-WhatIf`
+  and `-Confirm:$false` do not unlock writes. Missing policy code prevents module import.
+- GUI/console admit 16 explicit read tasks. Command validation requires one physical line,
+  an allowed script, literal arguments and known parameters. It rejects executable
+  expressions, extra statements, requirements directives and redirection. Worker startup
+  uses literal arguments and stops on errors. GDAP reads recheck the partner tenant.
+- Graph requests approved read scopes in Process context, rejects broad/unknown context
+  metadata and verifies the tenant. Exchange imports a specific read-cmdlet list and
+  verifies the actual tenant. Neither control downgrades an account's directory roles;
+  Exchange's session retains the account's full server permissions.
+- Hudu writes and customer approval browsers are blocked. The default GDAP assessment
+  now asks for Global Reader only and requires the operator to supply a real reader-group
+  object ID. Existing custom local templates are preserved and require separate review.
+- Learn quotes PowerShell values and OData filters separately, restricts raw fields and
+  rejects control/line-separator characters in answers (recursively) and unsafe context
+  headers. It rejects broad Graph sessions, isolates lookup caches by context, and keeps
+  the console usable when sign-in is refused.
+- Azure directory deletion and Kerberos consent based on display names are disabled.
+  Entra reimage refuses before authentication, drain or deletion. The retired cleanup
+  switch refuses at entry; new Entra hosts check for existing records before VM creation;
+  joins/preflight stop on stale records or failed lookups instead of continuing.
+- Bootstrap refuses old incompatible caches and preserves their settings. The policy file
+  is required by install preflight. The compatibility marker does not verify authenticity.
 
-IDs H/M/L refer to Fable's baseline report, not to a claim that a whole component is
-now safe. Items described as blocked still require fixes before writes return.
+## Opus round r2 findings and response
 
-| Finding | Candidate disposition / required next change |
+| Finding | Change / remaining boundary |
 | --- | --- |
-| H1: generated administrator password lost in the GUI | Account creation is blocked. Before re-enabling, require a verified secret-delivery destination or a one-time secret dialog, surface storage failures, and avoid normal activity logs. |
-| H2: crafted device filter can broaden directory deletion | Fixed by validating/encoding lookup input and disabling all directory cleanup by display name. Future cleanup must bind a verified immutable object ID to the original resource and tenant. |
-| M1/M2: Azure writes can skip preview or the central runner | Open. Route every mutation through a common guard; require an explicit preview and exact approved parameters. Changing only the default answer is insufficient. |
-| M3: Azure directory operations use the current tenant implicitly | Open. Require an explicit tenant and verify it at the API boundary; also verify every resource subscription against the selected context. |
-| M4: RDP access accepts broad networks and has no automatic expiry | Open. The expiry is descriptive until a revoke is run. Implement enforced expiry and narrow source validation, or disable this capability. |
-| M5: Learn raw substitutions and typographic quotes change generated code | Fixed for the identified generation paths, with adversarial regression tests. Catalog content and the commands the operator executes still require review. |
-| M6: write scopes, broad cached sessions, manual target override | Read scopes/process contexts enforced; the unconditional mutation block makes manual targets unable to authorize writes. Server-side reader roles and a dedicated approved application are still required for stronger isolation. |
-| M7: direct M365 scripts can write without a preview | Blocked unconditionally. Before writes return, make plan enforcement mandatory at the mutation boundary, including direct calls. |
-| M8: inbox-rule creation can discard client-only rules | Creation is blocked. Review mailbox rule preservation and explicit consent before any future write-enabled release. |
-| M9: generated passwords/TAPs reach normal output or GUI logs | Creation is blocked. A future write-enabled GUI needs dedicated secret handling, redaction, and delivery/error tests. |
-| L1: unexplained group GUID in example | Replaced with a clearly fictional value. |
-| L2: vendor names and onboarding conventions | Generic integration names are not proof of a connection to a particular operator. A separate editorial decision remains about publishing the detailed workflow; no claim of completed anonymity verification follows from a secret scan. |
-| L3: mutable IEX bootstrap and dependency versions | Open trust boundary. Use a reviewed commit and verified artifacts; pin/test release dependencies and add signing or independently verifiable release digests. |
-| L4: persisted sessions and local state | M365 Graph now uses process scope and approval browsers are disabled. Azure cache behavior and broader session cleanup remain open. Read-only reports still contain sensitive information. |
-| L5: CA read-back compares counts, ambiguous application deletion, incomplete static guard, third-party lookups | CA writes are blocked; name-based application deletion is disabled; Learn broad-session reuse is fixed. Content-level concurrency checking, exhaustive mutation classification, and third-party disclosure choices remain future work. |
+| C1: E2E stub errors allowed false-positive safety tests | Optional stub arguments now use strict-safe indexing. Tenant resolution has a StrictMode canary. Every catalog read must complete against fixtures; every catalog write must return the specific safe-mode refusal. An unrelated exception fails the test. The fake Exchange connection checks CommandName. The old 798-pass result alone did not establish this property and is superseded below. |
+| C2: Entra reimage could destroy a VM before the new cleanup refusal | Entra reimage is refused before any initialization or destructive work. Retired cleanup flags refuse before changes. Stale lookups no longer swallow failures; new host preflight runs before VM creation. Automatic cleanup remains disabled. |
+| C3: missing Exchange reads produced false report failures | Added Get-MailContact and Get-DistributionGroup. A reachability test walks the reviewed tasks/local functions and covers dynamic Get-$Kind calls; the integration stub enforces imported commands. Empty rule/relationship lists now produce ordinary failed checks rather than property errors. |
+| C4: display-name lookup could consent to the wrong application | Automatic Kerberos consent is now unconditionally refused before any lookup or write. A future design must bind exact application identity to the storage account; it must not overwrite unrelated consent scopes. |
+| C5: newline escaped a commented rollback command | All answer values, including nested values and dictionary keys, reject control/line-separator characters before either rendering style. Regression tests include LF, CRLF, CR, tab and Unicode separators. |
+| C6: fictional GUID did not trigger setup prompts | The shipped group ID is now an actual angle-bracket placeholder. Group and tenant fixture IDs differ. Broad-role legacy tests use their own explicit fixture. |
+| C7: Learn console exited on refused Graph context | It catches the refusal, warns, and continues with typed values/offline mode. |
+| C8: additional hardening | Missing-policy test now actually imports with Continue. Command AST rejects line breaks/requirements. M365 GUI relaunch uses NoProfile. Relative command paths still rely on the frontend's fixed working directory; same-process malicious code remains outside the boundary. |
+| D1: Azure accessible from the same safe menu | Root, Azure console and Azure GUI refuse administration. The conservative scope was chosen while the optional owner scope question remained unanswered. Direct legacy Azure source is explicitly outside the supported interface. |
+| D2/D3/D4: privilege, prior consent and consent writes | Documented limitations remain. Use a reader identity. Context metadata must be checked against actual token scopes in a disposable tenant. Existing broad consent can cause refusal; requesting reads does not revoke old grants. A dedicated read-only app is recommended but is not provisioned/configured automatically by this release. |
+| D5: broad GDAP template nudges users toward GA | Default template now contains Global Reader only. Existing local templates are not silently changed. |
 
-The primary review additionally found that the old shared M365 wrapper only enforced
-an approved plan when one was present. Fable's positive description of plan binding
-applies to the console/GUI workflow, not to every direct module invocation. The new
-unconditional guard is tested with no recorder at all. A future write-enabled version
-must not treat the old plan mechanism as sufficient without that correction.
+## Other findings that must remain blocked or be fixed before writes return
 
-The GDAP example still describes a broad legacy role set including Global
-Administrator. Safe mode cannot create or assign it. Replace that default with
-task-specific least privilege before considering any future GDAP write workflow.
+Fable's H1/M8/M9 remain underlying defects in disabled M365 mutation workflows:
+generated administrator passwords need reliable one-time delivery, inbox-rule creation
+must preserve existing client-only rules, and TAP/password output must avoid normal GUI
+logs. Conditional Access read-back must compare contents rather than list counts. Direct
+write callers must require an approved exact plan; the old wrapper only checked a plan
+when one was supplied. Fable's positive assessment of that mechanism applied to the
+console/GUI workflow, not every direct invocation.
 
-## Validation evidence and limits
+Legacy Azure still needs a central mutation guard/preview, explicit directory tenant and
+resource subscription validation, enforced RDP expiry and narrow network validation,
+and verified immutable identities for cleanup and consent. Disabling its UI does not fix
+those retained functions or certify them for direct use. Existing destructive examples
+in legacy documentation describe unavailable or unsafe-for-read-mode operations.
 
-- PowerShell 7.6.9 / Pester 5.7.1: root **29**, Learn **135**, M365 **500**, Azure
-  **134** tests passed (**798 total**). The affected GDAP tests were also rerun after
-  replacing the example identifier: **75 passed** (a subset, not additional tests).
-- All **414 PowerShell files** parsed without errors. Repository analyzer checks
-  are run across root and all three components. Eleven Bicep templates compiled;
-  the Bash script passed ShellCheck; XAML and example JSON parsed.
-- The unmodified M365 policy is covered by adversarial tests and an end-to-end
-  attempt to run each task with no approved-plan recorder. Legacy mutation tests
-  deliberately mock the policy against fake APIs; a temporary GDAP test copy does
-  the same for isolated runspaces. Those legacy tests do not demonstrate production
-  write availability.
-- Tests use fake SDK/API commands. No tenant was connected; no cloud resource,
-  mailbox, directory object, or service was changed. Windows WPF/WinForms/WebView2,
-  real sign-in/consent, service permissions, and real module-version behavior were
-  not exercised. Parser and analyzer success is not a security proof.
-- Review covered all components and scanned the repository. Fable explicitly
-  identifies Azure function bodies, in-guest scripts, Bicep, XAML, and parts of the
-  catalog/tests as scanned or sampled rather than read line by line. A complete
-  line-by-line independent audit is therefore **not yet established**.
+Supply-chain risks remain: mutable IEX/main downloads, unpinned dependencies, host and SDK
+trust. Old installed commands keep old behavior. Read scopes and reports can expose
+sensitive mail, identity and audit information; DNS checks can disclose domains to a
+third-party resolver. Vendor integration names are not proof of personal attribution,
+and a secret scan is not an anonymity certification.
 
-## Requirements before production use
+## Validation and coverage
 
-1. Complete the requested independent Opus review and address its blockers.
-2. Validate the permitted reads in a disposable tenant on Windows using a separate
-   reader identity, including tenant switching and already-consented broad scopes.
-   Confirm that the deployed dependencies and actual returned token context behave
-   as assumed. Do not use production GA credentials for this verification.
-3. For enforcement independent of this code, provision only the required reader
-   roles and application permissions; separate read and write identities. Exchange's
-   imported-command filter does not change server RBAC. See [Microsoft's Exchange
-   permissions documentation](https://learn.microsoft.com/exchange/permissions-exo/permissions-exo).
-4. Keep Azure outside any claim of read-only operation until its mutations are
-   centrally blocked or reviewed and the open targeting/expiry issues are resolved.
-5. Publish only the reviewed candidate through the repository approval process, then
-   reinstall into a new directory. Existing installs and the public `main` IEX URL
-   do not acquire these local changes until publication and upgrade.
+PowerShell 7.6.9, Pester 5.7.1: root **29**, Learn **137**, M365 **504**, Azure **142**:
+**812 passed**. Repository analyzer checks found zero warnings/errors; all **415**
+PowerShell files parsed. Unchanged infrastructure had 11 Bicep templates compiled,
+ShellCheck passed, and XAML/example JSON parsed. The repository secret scan found no
+leaks; the staged privacy scan found only fictional fixture emails, with no detected
+personal/company identifiers, credential patterns, phone numbers or Discord IDs.
+
+The real-policy tests never mock the read-only guard. The E2E matrix exercises all 51
+catalog tasks with expected outcomes, including no approved-plan recorder. It now
+checks successful read completion and exact write refusal, not merely absence of writes.
+Legacy mutation-unit tests deliberately mock the policy against fake APIs; GDAP hostless
+runspaces do so only in a temporary test copy. Those tests do not prove production write
+availability. The Azure regression probes verify refusal before module initialization.
+
+No tenant was connected. No actual Graph/Exchange module sign-in, token/consent behavior,
+Windows WPF/WinForms/WebView2 UI or CI execution was verified. Mocked APIs cannot establish
+real service permissions or tenant-specific correctness. New guards were tested locally;
+cloud resources, mailboxes and directory objects were never changed.
+
+Both independent reviewers covered all components through a mixture of line reading,
+whole-tree AST scans and tests. Neither established a complete line-by-line audit of all
+legacy write bodies, Azure modules/guest scripts/Bicep, catalog, XAML and CI. Opus's
+original fuzz found the newline problem; the new regression tests cover its cause.
+Do not represent this as exhaustive certification of every file or zero risk with GA.
+
+## Before production use
+
+1. Complete the fresh independent review and address any remaining release blockers.
+2. In a disposable Windows tenant, use a separate reader identity to validate all 16 read
+   tasks, Exchange imports, tenant switching, SDK/token scope agreement, existing broad
+   consent refusal and intentional consent handling. Determine the least role each
+   report actually requires; Global Reader alone is not a promise that every report works.
+3. Use server-side reader roles and appropriately consented applications. Exchange's
+   import filter does not alter server RBAC; see [Microsoft's permissions documentation](https://learn.microsoft.com/exchange/permissions-exo/permissions-exo).
+4. Install the reviewed, commit-pinned artifact into a new path and stop using old installs.
+   Keep reports and local state confidential. Avoid mutable IEX/main for admin sessions.
+5. Publish only after repository-owner approval. The public launcher has not acquired
+   these local changes until that approval, publication and upgrade occur.

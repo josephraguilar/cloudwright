@@ -11,7 +11,7 @@ BeforeAll {
 
     $script:HomeGuid = '11111111-1111-1111-1111-111111111111'
     $script:Tid = 'cccccccc-0000-0000-0000-000000000001'
-    $script:AdminAgents = '11111111-1111-1111-1111-111111111111'
+    $script:AdminAgents = 'aaaaaaaa-0000-0000-0000-000000000003'
 
     # Fake Graph. Writes are GLOBAL functions: Invoke-M365Change resolves the command it runs
     # itself, so Pester mocks (aliases) never see writes. Every write lands in $global:GdapFake.Writes.
@@ -107,8 +107,21 @@ function global:Invoke-MgGraphRequest {
     }
     Reset-Fake
 
+    # Explicit legacy fixture keeps broad-role algorithm tests separate from the
+    # shipped read-only default and from real group/tenant identifiers.
+    $legacy = Get-Content (Join-Path $script:RepoRoot 'config' 'gdap-roles.example.json') -Raw | ConvertFrom-Json
+    $legacy.roles = 'allAdmin'
+    $legacy.name = 'MSP standard GDAP'
+    $legacy.displayNamePattern = 'MSP GDAP - {customer}'
+    $legacy.groups[0].name = 'Admin Agents'
+    $legacy.groups[0].id = $script:AdminAgents
+    $script:ExamplePath = Join-Path $TestDrive 'legacy-gdap.json'
+    $legacy | ConvertTo-Json -Depth 6 | Set-Content $script:ExamplePath
+
     # A two-tier fixture under TestDrive so the matrix tests cover partial role coverage per group.
     $t = Get-Content (Join-Path $script:RepoRoot 'config' 'gdap-roles.example.json') -Raw | ConvertFrom-Json
+    $t.name = 'MSP standard GDAP'
+    $t.displayNamePattern = 'MSP GDAP - {customer}'
     $t.roles = @('Global Reader', 'Helpdesk Administrator', 'Service Support Administrator', 'User Administrator', 'License Administrator', 'Groups Administrator',
         'Exchange Administrator', 'SharePoint Administrator', 'Teams Administrator', 'Intune Administrator', 'Security Administrator', 'Conditional Access Administrator',
         'Authentication Administrator', 'Privileged Authentication Administrator', 'Cloud Application Administrator', 'Application Administrator', 'Domain Name Administrator',
@@ -121,7 +134,7 @@ function global:Invoke-MgGraphRequest {
     $script:TemplatePath = Join-Path $TestDrive 'gdap-roles.json'
     $t | ConvertTo-Json -Depth 6 | Set-Content $script:TemplatePath
     $script:Template = Get-GdapTemplate -Path $script:TemplatePath
-    $script:Example = Get-GdapTemplate -Path (Join-Path $script:RepoRoot 'config' 'gdap-roles.example.json')
+    $script:Example = Get-GdapTemplate -Path $script:ExamplePath
     $script:TenantInfo = [pscustomobject]@{ TenantId = $script:Tid; DisplayName = 'Contoso Ltd'; DefaultDomainName = 'contoso.onmicrosoft.com' }
 
     $script:GlobalAdmin = Get-GdapRoleId 'Global Administrator'
@@ -194,7 +207,7 @@ Describe 'GdapHelpers module' {
             $names | Should -Contain 'Global Administrator'
             $names | Should -Contain 'Privileged Role Administrator'
             $names | Should -Contain 'Privileged Authentication Administrator'
-            (Get-GdapTemplate -Path (Join-Path $script:RepoRoot 'config' 'gdap-roles.example.json')).RoleIds.Count | Should -Be 27
+            (Get-GdapTemplate -Path $script:ExamplePath).RoleIds.Count | Should -Be 27
             $script:Fake.RoleDefinitionReads | Should -Be 0
         }
         It 'lists Global Administrator, Privileged Role and Privileged Authentication Administrator first and flags them' {
@@ -238,7 +251,16 @@ Describe 'GdapHelpers module' {
     }
 
     Context 'Get-GdapTemplate' {
-        It 'loads the shipped example: allAdmin roles incl. Global Administrator, PT0S, Admin Agents gets every role' {
+        It 'ships a read-only role set and prompts for a real group id' {
+            $path = Join-Path $script:RepoRoot 'config' 'gdap-roles.example.json'
+            $default = Get-Content $path -Raw | ConvertFrom-Json
+            @($default.roles) | Should -Be @('Global Reader')
+            @(Get-M365ConfigPlaceholder -Path $path) | Should -Contain 'groups[0].id'
+            { Get-GdapTemplate -Path $path } | Should -Throw '*placeholder*'
+            $script:HomeGuid | Should -Not -Be $script:AdminAgents
+        }
+
+        It 'loads the explicit legacy fixture for broad-role algorithm coverage' {
             $ex = $script:Example
             $ex.RoleNames | Should -Contain 'Global Administrator'
             $ex.RoleNames | Should -Contain 'Exchange Administrator'
@@ -252,7 +274,7 @@ Describe 'GdapHelpers module' {
             $ex.Groups[0].RoleIds.Count | Should -Be $ex.RoleIds.Count
         }
         It 'refuses allAdmin with auto-extend (Global Administrator rule)' {
-            $bad = Get-Content (Join-Path $script:RepoRoot 'config' 'gdap-roles.example.json') -Raw | ConvertFrom-Json
+            $bad = Get-Content $script:ExamplePath -Raw | ConvertFrom-Json
             $bad.autoExtendDuration = 'P180D'
             $path = Join-Path $TestDrive 'ga-ext.json'; $bad | ConvertTo-Json -Depth 6 | Set-Content $path
             { Get-GdapTemplate -Path $path } | Should -Throw '*cannot auto-extend*'
@@ -728,7 +750,7 @@ Describe 'Partner scripts end to end (stubbed Graph)' {
         $settings.msp.homeTenantId = $script:HomeGuid
         $settings.msp.adminUpn = 'tech@msp.example'
         $settings | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $config 'msp.settings.local.json')
-        Copy-Item (Join-Path $script:RepoRoot 'config' 'gdap-roles.example.json') (Join-Path $config 'gdap-roles.local.json')
+        Copy-Item $script:ExamplePath (Join-Path $config 'gdap-roles.local.json')
         $fake = Join-Path $TestDrive 'fakemods' 'Microsoft.Graph.Authentication'
         $null = New-Item -ItemType Directory -Path $fake -Force
         Set-Content (Join-Path $fake 'Microsoft.Graph.Authentication.psd1') "@{ ModuleVersion = '2.0.0' }"

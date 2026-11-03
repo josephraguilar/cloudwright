@@ -42,20 +42,15 @@ Describe 'Cloudwright command contract' {
         }
     }
 
-    It 'passes Azure tenant and subscription to the console entry point' {
-        cloudwright azure -Console -TenantId '00000000-0000-0000-0000-000000000000' -SubscriptionId 'lab subscription'
-        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 1 -Exactly -ParameterFilter {
-            $ScriptPath -like '*Start-AvdConsole.ps1' -and
-            ($ScriptArguments -join '|') -eq '-TenantId|00000000-0000-0000-0000-000000000000|-SubscriptionId|lab subscription'
-        }
+    It 'refuses Azure even with tenant, subscription, and console flags' {
+        { cloudwright azure -Console -TenantId '00000000-0000-0000-0000-000000000000' -SubscriptionId 'lab subscription' } | Should -Throw '*Azure/AVD administration is disabled*'
+        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 0
     }
 
-    It 'chooses the native Azure interface for this platform' {
-        cloudwright azure
-        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 1 -Exactly -ParameterFilter {
-            if ($IsWindows) { $ScriptPath -like '*Start-AvdGui.ps1' -and $Sta }
-            else { $ScriptPath -like '*Start-AvdConsole.ps1' -and -not $Sta }
-        }
+    It 'refuses Azure from the main menu before launching a child' {
+        Mock Read-Host -ModuleName Cloudwright { '2' }
+        { cloudwright } | Should -Throw '*Azure/AVD administration is disabled*'
+        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 0
     }
 
     It 'keeps Microsoft 365 setup on its existing launcher' {

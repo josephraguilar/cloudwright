@@ -2,7 +2,7 @@
 
 Cloudwright 0.2.0 makes **option 3 / `cloudwright m365` read-only for tenant operations**.
 There is no supported flag, environment variable, menu toggle, or approval that enables
-Microsoft 365 writes. Local setup, settings, reports, and logs can still write files.
+Microsoft 365 writes. Azure launcher/console/GUI entry points are disabled. Local setup, settings, reports, and logs can still write files.
 
 ## Enforcement
 
@@ -10,7 +10,8 @@ Microsoft 365 writes. Local setup, settings, reports, and logs can still write f
   Adding a script to a folder does not automatically admit it to safe mode.
 - Prepared commands must name one allowed script with literal arguments. Additional
   commands, executable expressions, pipelines, redirection, and arbitrary paths are refused.
-- The shared mutation helper rejects all writes, including direct scripts, approved plans,
+- All 35 catalog write scripts and the GDAP onboarding entry point refuse before sign-in
+  or lookups. The shared mutation helper independently rejects writes, including approved plans,
   `-Confirm:$false`, and `-WhatIf`. Hudu writes are also blocked. Mutation scripts are not
   run merely to produce previews in safe mode.
 - Graph requests only approved read scopes with `-ContextScope Process`. Unknown,
@@ -27,17 +28,31 @@ Use a separate account with only the reader roles needed for your reports. **Do 
 Global Administrator as the routine inspection identity.** Exchange's `-CommandName`
 limits imported commands; it does not downgrade the account's server-side RBAC permissions.
 Graph scope/context checks reduce access but do not sandbox PowerShell. First-time consent
-can grant an application access and requires a separate administrator decision.
+**changes tenant permission grants** and requires a separate administrator decision.
+Decline organization-wide consent unless that change was explicitly intended. To reverse
+accidental admin consent, review the exact enterprise application's Permissions > Admin
+consent entry in Entra and revoke the specific unwanted grant after checking its users
+and dependencies. This is separate administrative work, never an automated safe-mode task.
+See [Microsoft's review and revoke instructions](https://learn.microsoft.com/entra/identity/enterprise-apps/manage-application-permissions).
+
+Requesting read scopes does not revoke previous grants. If the SDK reports additional
+permissions from earlier consent, safe mode disconnects and refuses access. A dedicated
+read-only Graph application is the recommended isolation design; this release does not
+automatically provision or configure one. Review existing grants with your tenant
+administrator; do not weaken the allowlist to get past a refusal. Matching context
+metadata to actual token scopes still needs a disposable-tenant integration test.
 
 See Microsoft's documentation for [Graph authentication and application isolation](https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands),
 [Exchange command importing](https://learn.microsoft.com/powershell/module/exchangepowershell/connect-exchangeonline),
 and [Exchange RBAC](https://learn.microsoft.com/exchange/permissions-exo/permissions-exo).
 
-**Azure/AVD remains a write-capable administration component. It does not inherit this
-Microsoft 365 policy.** Learn generates text only; copied commands can change or delete
-resources when executed outside Learn. Its own Graph lookups reject broad sessions.
-Automatic Azure directory cleanup by device/application display name is disabled;
-those names do not establish resource ownership. Other Azure operations can still write.
+**Azure administration is disabled from Cloudwright and from the Azure console/GUI.**
+The legacy scripts and modules still in `azure/` are write-capable source, outside the
+supported read-only interface; invoking them directly is not safe-mode use. Automatic
+name-based directory deletion and Kerberos consent are disabled, and Entra reimage
+refuses before draining or deleting a host. The retired cleanup switch also refuses early.
+Learn generates text only; copied commands can change or delete resources when executed
+outside Learn. Its own Graph lookups reject broad sessions.
 See [the review and remaining requirements](SECURITY-REVIEW.md).
 
 The policy protects the reviewed toolkit's behavior. It cannot constrain modified source,
@@ -62,8 +77,10 @@ own replacement or defend against a compromised distribution path.
 
 Safety tests exercise the unmodified policy against fake APIs, including forged plans,
 malformed commands, broad sessions, and tenant mismatches. End-to-end tests invoke every
-Microsoft 365 task without an approval recorder and check that no tenant write or browser
-launch occurs. Legacy mutation-unit tests mock the policy against fake APIs to retain
+catalog task without an approval recorder: read tasks must complete against fixtures,
+write tasks must return the exact safe-mode refusal, and none may reach a write or browser.
+An unrelated error fails the test. The fake Exchange session enforces the imported
+command list, and the tenant-lookup canary runs under StrictMode. Legacy mutation-unit tests mock the policy against fake APIs to retain
 algorithm coverage; GDAP runspace tests override it only in a temporary test copy.
 
 No live tenant was connected or changed. Mocked tests do not establish real SDK behavior,

@@ -42,6 +42,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $modules = Join-Path $PSScriptRoot '..' 'modules'
 foreach ($m in 'M365Helpers', 'ExchangeHelpers', 'SecurityHelpers') { Import-Module (Join-Path $modules $m "$m.psd1") -Force }
+Assert-M365WriteAllowed   # Refuse legacy write tasks before sign-in, lookups, or prompts.
 $settings = try { Get-M365Settings } catch { $null }
 if (-not $SignInAs -and $settings -and $settings.msp.adminUpn -notmatch '^<') { $SignInAs = $settings.msp.adminUpn }
 $null = Assert-M365Exchange -Organization $Organization -UserPrincipalName $SignInAs

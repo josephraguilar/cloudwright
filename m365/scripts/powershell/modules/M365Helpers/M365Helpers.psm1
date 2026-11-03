@@ -1568,7 +1568,7 @@ function Write-M365Step {
     if ($Detail) { Write-Host ("{0,-16}{1}" -f '', $Detail) -ForegroundColor DarkGray }
 }
 
-Export-ModuleMember -Function Test-M365ReadOnly, Get-M365Settings, Get-M365ClientConfig, Resolve-M365TenantId, Assert-M365SameTenant, Assert-M365Graph, Assert-M365Exchange,
+Export-ModuleMember -Function Test-M365ReadOnly, Assert-M365WriteAllowed, Get-M365Settings, Get-M365ClientConfig, Resolve-M365TenantId, Assert-M365SameTenant, Assert-M365Graph, Assert-M365Exchange,
     Get-M365ExchangeTenant, Disconnect-M365Tenant, Resolve-DnsRecord, New-StrongPassword, Add-HuduPassword, Write-M365Step,
     Invoke-M365WithRetry, New-M365CorrelationId, Write-M365Log, Get-M365ConfigPlaceholder, Get-M365ConfigValue, Set-M365ConfigValue, Export-M365Csv,
     Test-M365PasswordComplexity, Read-M365Password,

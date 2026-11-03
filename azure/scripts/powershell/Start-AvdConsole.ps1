@@ -59,6 +59,7 @@ param(
 #          to disk, so no client values ever land in the repo.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+throw 'Cloudwright safe release: Azure/AVD administration is disabled pending a reviewed read-only implementation.'
 
 Import-Module (Join-Path $PSScriptRoot 'modules' 'AzHelpers' 'AzHelpers.psd1') -Force
 Import-Module (Join-Path $PSScriptRoot 'modules' 'AvdHelpers' 'AvdHelpers.psd1') -Force

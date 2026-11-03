@@ -2,6 +2,16 @@ BeforeAll {
     Import-Module (Join-Path $PSScriptRoot '../src/MsScripter/MsScripter.psd1') -Force
 }
 Describe 'Generated commands preserve data as data' {
+    It 'rejects physical line breaks and controls before rendering either style, including nested values' {
+        $task = Get-MsTask entra.apps.new-app-registration
+        foreach ($style in 'OneLiner', 'Explained') {
+            foreach ($separator in "`n", "`r`n", "`r", "`t", [string][char]0x85, [string][char]0x2028, [string][char]0x2029) {
+                $bad = "app${separator}Invoke-X #"
+                { New-MsScript -Task $task -Answers @{ DisplayName = $bad } -Style $style -WithRollback } | Should -Throw '*single-line*'
+                { New-MsScript -Task $task -Answers @{ DisplayName = 'app'; Nested = @{ Key = @($bad) } } -Style $style } | Should -Throw '*single-line*'
+            }
+        }
+    }
     It 'escapes every PowerShell single-quote character in values, arrays, and hashtable keys' {
         InModuleScope MsScripter {
             foreach ($quote in @([char]39, [char]0x2018, [char]0x2019, [char]0x201a, [char]0x201b)) {
@@ -47,6 +57,16 @@ Describe 'Generated commands preserve data as data' {
     }
 }
 Describe 'Learn Graph session checks' {
+    It 'continues to the task menu after Graph sign-in is refused' {
+        InModuleScope MsScripter {
+            Mock Read-Host { if ($Prompt -like '*Microsoft Graph*') { 'y' } else { 'n' } }
+            Mock Assert-MsGraphContext { throw 'Broad Graph context refused' }
+            Mock Select-MsSection { $null }
+            { Show-MsScripter -WarningAction SilentlyContinue 6>$null } | Should -Not -Throw
+            Should -Invoke Assert-MsGraphContext -Times 1
+            Should -Invoke Select-MsSection -Times 1
+        }
+    }
     It 'does not reuse lookup rows after switching tenants' {
         InModuleScope MsScripter {
             $script:SourceCache = @{}; $script:ContosoMode = $false; $script:LookupCount = 0

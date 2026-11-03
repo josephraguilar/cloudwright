@@ -6,7 +6,8 @@ Direct-script examples below run from this `m365/` directory.
 
 **This release is in mandatory read-only safe mode.** Inspection/report tasks remain
 available; tenant writes, Hudu writes, and GDAP approvals are disabled, including direct
-calls to the mutation helper. There is no write-enable switch. See
+calls to the mutation helper. Accepting Microsoft consent can still change tenant
+permission grants; decline it unless separately intended. There is no write-enable switch. See
 [the safety contract, credential limits, and upgrade instructions](../docs/SAFETY.md).
 The administration workflows described below are retained legacy code; their write
 operations are unavailable until a separately reviewed release enables them.

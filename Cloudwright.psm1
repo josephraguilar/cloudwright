@@ -49,7 +49,7 @@ function Start-Cloudwright {
         Each area starts in a separate PowerShell process. Windows uses the existing
         desktop interface by default; -Console and other platforms use a text menu.
         Learn builds commands for you to read and copy. It never runs generated commands.
-        Azure and Microsoft 365 retain their own sign-in and change-review workflows.
+        Azure administration is disabled in this release. Microsoft 365 permits reviewed reads only.
         Opening the top-level menu, help, or version does not sign in or install dependencies.
         -WhatIf previews which entry point would open; it does not run an area's tenant plan.
     .PARAMETER Area
@@ -115,7 +115,7 @@ function Start-Cloudwright {
         Write-Host ''
         Write-Host 'Cloudwright' -ForegroundColor Cyan
         Write-Host '  1. Learn Microsoft commands'
-        Write-Host '  2. Manage Azure and AVD'
+        Write-Host '  2. Azure and AVD (disabled in the safe release)'
         Write-Host '  3. Manage Microsoft 365 (SAFE MODE: read-only)'
         Write-Host '  Q. Quit'
         while ($Area -eq 'menu') {
@@ -129,6 +129,8 @@ function Start-Cloudwright {
             }
         }
     }
+
+    if ($Area -eq 'azure') { throw 'Cloudwright safe release: Azure/AVD administration is disabled pending a reviewed read-only implementation.' }
 
     $useConsole = $Console -or -not $IsWindows
     $scriptArguments = @()

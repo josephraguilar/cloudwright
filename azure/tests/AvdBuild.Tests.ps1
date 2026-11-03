@@ -40,6 +40,24 @@ Describe 'Directory cleanup safety' {
         { Remove-AvdStorageKerberosApp -StorageAccountName "x' or id ne '" -WhatIf } | Should -Throw '*disabled*'
         Should -Invoke Invoke-AzRestMethod -ModuleName AvdBuild -Times 0
     }
+
+    It 'refuses automatic consent before even looking up a display name' {
+        Mock Invoke-AzRestMethod -ModuleName AvdBuild { throw 'Must not call Graph' }
+        { Grant-AvdStorageKerberosConsent -StorageAccountName 'stlab' -Confirm:$false } | Should -Throw '*consent*disabled*'
+        { Grant-AvdStorageKerberosConsent -StorageAccountName 'stlab' -WhatIf } | Should -Throw '*consent*disabled*'
+        Should -Invoke Invoke-AzRestMethod -ModuleName AvdBuild -Times 0
+    }
+
+    It 'refuses the retired cleanup switch before any join lookup or mutation' {
+        Mock Invoke-AzRestMethod -ModuleName AvdBuild { throw 'Must not call Graph' }
+        { Join-AvdSessionHost -ResourceGroupName 'rg-lab' -VMName 'avd-lab-01' -Location 'eastus' -JoinType EntraId -RemoveStaleEntraDevice -Confirm:$false } | Should -Throw '*RemoveStaleEntraDevice is disabled*'
+        Should -Invoke Invoke-AzRestMethod -ModuleName AvdBuild -Times 0
+    }
+
+    It 'stops the join when the device lookup fails instead of continuing' {
+        Mock Invoke-AzRestMethod -ModuleName AvdBuild { throw 'Fixture: permission denied' }
+        { Join-AvdSessionHost -ResourceGroupName 'rg-lab' -VMName 'avd-lab-01' -Location 'eastus' -JoinType EntraId -Confirm:$false } | Should -Throw '*Fixture: permission denied*'
+    }
 }
 
 Describe 'AvdBuild module' {

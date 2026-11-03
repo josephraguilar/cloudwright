@@ -593,61 +593,19 @@ function Test-AvdBuildPermission {
 #          Administrator). The service principal can take a minute to appear after
 #          Entra Kerberos is enabled, so callers retry briefly.
 function Grant-AvdStorageKerberosConsent {
-    <#
-    .SYNOPSIS
-        Grants tenant-wide admin consent to a storage account's Entra Kerberos service principal.
-    .OUTPUTS
-        'AlreadyGranted', 'Granted', or throws with the reason.
+    <# .SYNOPSIS
+        Refuses tenant-wide consent based only on a service principal display name.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '', Justification = 'Compatibility entry point always refuses consent before any API call.')]
     [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)] [string]$StorageAccountName,
         [Parameter()] [int]$WaitForPrincipalSeconds = 90
     )
-    $spName = "[Storage Account] $StorageAccountName.file.core.windows.net"
-    $filter = [uri]::EscapeDataString("displayName eq '$spName'")
-
-    $sp = $null
-    $deadline = (Get-Date).AddSeconds($WaitForPrincipalSeconds)
-    do {
-        $resp = Invoke-AzRestMethod -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=$filter&`$select=id,appId,displayName"
-        if ($resp.StatusCode -ne 200) { throw "Graph service principal lookup returned HTTP $($resp.StatusCode): $($resp.Content)" }
-        $sp = ($resp.Content | ConvertFrom-Json).value | Select-Object -First 1
-        if (-not $sp) { Start-Sleep -Seconds 10 }
-    } until ($sp -or (Get-Date) -gt $deadline)
-    if (-not $sp) { throw "Service principal '$spName' not found in Entra ID. Is Entra Kerberos enabled on the storage account? It can take a minute to appear." }
-
-    $resp = Invoke-AzRestMethod -Method GET -Uri "https://graph.microsoft.com/v1.0/servicePrincipals?`$filter=appId%20eq%20'00000003-0000-0000-c000-000000000000'&`$select=id"
-    $graphSp = ($resp.Content | ConvertFrom-Json).value | Select-Object -First 1
-    if (-not $graphSp) { throw 'Microsoft Graph service principal not found in this tenant.' }
-
-    $scopes = 'openid profile User.Read'
-    $resp = Invoke-AzRestMethod -Method GET -Uri "https://graph.microsoft.com/v1.0/oauth2PermissionGrants?`$filter=clientId%20eq%20'$($sp.id)'%20and%20consentType%20eq%20'AllPrincipals'"
-    if ($resp.StatusCode -ne 200) { throw "Graph consent lookup returned HTTP $($resp.StatusCode): $($resp.Content)" }
-    $existing = ($resp.Content | ConvertFrom-Json).value | Where-Object resourceId -eq $graphSp.id | Select-Object -First 1
-    if ($existing) {
-        $have = $existing.scope -split '\s+'
-        if (@('openid', 'profile', 'User.Read' | Where-Object { $_ -notin $have }).Count -eq 0) {
-            Write-Verbose "Admin consent already granted for $spName."
-            return 'AlreadyGranted'
-        }
-        if ($PSCmdlet.ShouldProcess($spName, "Extend admin consent to '$scopes'")) {
-            $body = @{ scope = $scopes } | ConvertTo-Json
-            $resp = Invoke-AzRestMethod -Method PATCH -Uri "https://graph.microsoft.com/v1.0/oauth2PermissionGrants/$($existing.id)" -Payload $body
-            if ($resp.StatusCode -notin 200, 204) { throw "Updating consent returned HTTP $($resp.StatusCode): $($resp.Content)" }
-            return 'Granted'
-        }
-        return
-    }
-
-    if ($PSCmdlet.ShouldProcess($spName, "Grant admin consent for '$scopes' to all users")) {
-        $body = @{ clientId = $sp.id; consentType = 'AllPrincipals'; resourceId = $graphSp.id; scope = $scopes } | ConvertTo-Json
-        $resp = Invoke-AzRestMethod -Method POST -Uri 'https://graph.microsoft.com/v1.0/oauth2PermissionGrants' -Payload $body
-        if ($resp.StatusCode -notin 200, 201) { throw "Creating consent returned HTTP $($resp.StatusCode): $($resp.Content)" }
-        Write-Verbose "Admin consent granted for $spName."
-        return 'Granted'
-    }
+    $null = $WaitForPrincipalSeconds
+    throw "Automatic Kerberos consent for '$StorageAccountName' is disabled: display names do not prove application ownership. Verify the storage account's exact service principal in the Azure portal before any separate consent decision."
 }
+
 #endregion
 
 #region Storage account Entra app cleanup -------------------------------------
@@ -752,10 +710,8 @@ function Join-AvdSessionHost {
         Entra join needs a system-assigned identity on the VM and
         targetisaadjoined:i:1 on the host pool.
     .PARAMETER RemoveStaleEntraDevice
-        Delete an Entra device record that carries this VM's name before joining.
-        Without it the function stops and tells you which record to delete in the
-        Entra admin center. Nothing in this repo deletes directory objects unless
-        asked to by name.
+        Retired. Supplying this switch stops before any operation because directory
+        ownership cannot be established from a display name.
     #>
     [CmdletBinding(SupportsShouldProcess)]
     param(
@@ -768,6 +724,7 @@ function Join-AvdSessionHost {
         [Parameter()] [string]$OUPath,
         [Parameter()] [switch]$RemoveStaleEntraDevice
     )
+    if ($RemoveStaleEntraDevice) { throw 'RemoveStaleEntraDevice is disabled: automatic directory cleanup cannot establish ownership by name.' }
     if ($JoinType -eq 'ActiveDirectory') {
         if (-not $DomainName -or -not $DomainJoinCredential) { throw 'JoinType ActiveDirectory requires -DomainName and -DomainJoinCredential.' }
         if ($PSCmdlet.ShouldProcess($VMName, "Join Active Directory domain $DomainName")) {
@@ -782,22 +739,10 @@ function Join-AvdSessionHost {
         return
     }
     if ($PSCmdlet.ShouldProcess($VMName, 'Join Entra ID')) {
-        # 1. A leftover device record with this name makes the join fail with
-        #    error_hostname_duplicate while the extension still reports success.
-        #    Deleting it is opt-in: by default the build stops and names the record.
-        try {
-            $stale = @(Find-AvdEntraDevice -Name $VMName)
-            if ($stale.Count -gt 0) {
-                if ($RemoveStaleEntraDevice) {
-                    $removed = Remove-AvdEntraDevice -Name $VMName
-                    Write-Verbose "Removed $removed stale Entra device record(s) named $VMName."
-                } else {
-                    throw "Entra ID already has $($stale.Count) device record(s) named $VMName (left over from a deleted VM). The join would fail with error_hostname_duplicate. Delete it in Entra admin center > Devices > All devices > search '$VMName', then re-run. Or pass -RemoveStaleEntraDevice to let the script delete it."
-                }
-            }
-        } catch {
-            if ($_.Exception.Message -like 'Entra ID already has*') { throw }
-            Write-Warning "Could not check Entra for a stale device named ${VMName}: $($_.Exception.Message). Continuing; if the join fails with error_hostname_duplicate, delete it in Entra admin center > Devices."
+        # Fail closed on stale records or lookup errors before any extension changes.
+        $stale = @(Find-AvdEntraDevice -Name $VMName)
+        if ($stale.Count -gt 0) {
+            throw "Entra ID already has device records named $VMName. Automatic cleanup is disabled; verify their exact identities and ownership before a separate manual cleanup. No join changes were made."
         }
 
         # 2. Join. If a failed attempt is already on the VM, remove it so this is a fresh run.

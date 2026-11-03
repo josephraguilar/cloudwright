@@ -166,9 +166,10 @@ function Assert-M365ReadOnlyCommand {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Line)
+    if ($Line -match '[\r\n\u0085\u2028\u2029]') { throw 'Safe mode requires a single physical command line.' }
     $parseErrors = $null
     $ast = [System.Management.Automation.Language.Parser]::ParseInput($Line, [ref]$null, [ref]$parseErrors)
-    if ($parseErrors -or $ast.BeginBlock -or $ast.ProcessBlock -or $ast.ParamBlock -or
+    if ($parseErrors -or $ast.ScriptRequirements -or $ast.BeginBlock -or $ast.ProcessBlock -or $ast.ParamBlock -or
         -not $ast.EndBlock -or $ast.EndBlock.Statements.Count -ne 1) {
         throw 'Safe mode requires exactly one read-only task command.'
     }

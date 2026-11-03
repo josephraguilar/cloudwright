@@ -7,6 +7,7 @@
     PowerShellVersion = '7.2'
     FunctionsToExport = @(
         'Test-M365ReadOnly'
+        'Assert-M365WriteAllowed'
         'Get-M365Settings'
         'Get-M365ClientConfig'
         'Resolve-M365TenantId'

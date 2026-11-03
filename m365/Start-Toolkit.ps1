@@ -65,7 +65,7 @@ if ($Console -or -not $IsWindows) {
     if ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') {
         & $gui
     } else {
-        Start-Process pwsh -ArgumentList '-STA', '-NoLogo', '-File', "`"$gui`"" -Wait
+        Start-Process pwsh -ArgumentList '-STA', '-NoLogo', '-NoProfile', '-File', "`"$gui`"" -Wait
     }
 }
 #endregion

@@ -58,7 +58,9 @@ function Show-MsScripter {
             }
         }
         if ((Read-Host '  Sign in to Microsoft Graph (read-only scopes) so pick lists show users and groups? [y/N]') -match '^[Yy]') {
-            $mg = Assert-MsGraphContext
+            $mg = $null
+            try { $mg = Assert-MsGraphContext }
+            catch { Write-Warning "Graph lookup sign-in was refused: $($_.Exception.Message) Continue with typed values or offline Contoso mode." }
             if ($mg) {
                 if (-not $context.ContainsKey('TenantId')) { $context.TenantId = $mg.TenantId }
                 Write-Host "  Graph: $($mg.Account) with scopes $($mg.Scopes -join ', ')" -ForegroundColor Green

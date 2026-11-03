@@ -165,6 +165,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ($JoinType -eq 'EntraId') {
+    throw 'Entra-joined reimage is disabled until device ownership can be verified before destruction. No host has been drained, deleted, or rebuilt.'
+}
+
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AzHelpers' 'AzHelpers.psd1') -Force -Verbose:$false
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AvdHelpers' 'AvdHelpers.psd1') -Force -Verbose:$false
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AvdBuild' 'AvdBuild.psd1') -Force -Verbose:$false
@@ -252,13 +256,6 @@ if ($PSCmdlet.ShouldProcess($vmName, "Remove from pool $HostPoolName, delete VM 
 
     Write-Verbose "Deleting VM $vmName."
     $null = Remove-AzVM -ResourceGroupName $vmRg -Name $vmName -Force
-
-    # The Entra device record outlives the VM and blocks the rebuild's join
-    # (error_hostname_duplicate). Remove it with the VM.
-    if ($JoinType -eq 'EntraId') {
-        try { $null = Remove-AvdEntraDevice -Name $vmName -Confirm:$false }
-        catch { Write-Warning "Could not remove the Entra device record for ${vmName}: $($_.Exception.Message). The rebuild's join will remove it, or delete it in Entra admin center > Devices." }
-    }
 
     Write-Verbose "Deleting OS disk $($osDisk.Name)."
     $null = Remove-AzDisk -ResourceGroupName $osDisk.ResourceGroupName -DiskName $osDisk.Name -Force

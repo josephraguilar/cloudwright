@@ -278,6 +278,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ($RemoveStaleEntraDevice) { throw 'RemoveStaleEntraDevice is disabled: automatic directory cleanup cannot establish ownership by name. No changes were made.' }
+
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AzHelpers' 'AzHelpers.psd1') -Force -Verbose:$false
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AvdHelpers' 'AvdHelpers.psd1') -Force -Verbose:$false
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AvdBuild' 'AvdBuild.psd1') -Force -Verbose:$false
@@ -673,36 +675,21 @@ $null = Invoke-Step -Name "Host pool $HostPoolName" -Action {
 #endregion
 
 #region 7b. Preflight: stale Entra device records ----------------------------
-#   WHAT   For every host name this run will build, look for an Entra ID device
-#          object with that name whose VM no longer exists, and delete it.
-#   WHY    A leftover record makes the Entra join fail with error_hostname_duplicate
-#          while the extension still reports success. Catching it here means the
-#          problem is reported before any VM is built, with all names in one list.
-#          Deleting the records is opt-in (-RemoveStaleEntraDevice); the default is
-#          to stop and name them, because nothing here should delete a directory
-#          object the operator did not ask about.
-#   GOTCHA A record whose VM DOES exist is left alone: that is a live host.
+# Check planned host names before building VMs. Existing device records or failed
+# lookups stop the build; automatic name-based directory cleanup is disabled.
+# Records for an already existing VM are left to the join's own fail-closed check.
 if ($SessionHostCount -gt 0 -and -not $WhatIfPreference) {
     $null = Invoke-Step -Name 'Preflight: stale Entra device records' -Action {
         $stale = @()
         for ($i = 1; $i -le $SessionHostCount; $i++) {
             $name = '{0}{1:d2}' -f $SessionHostPrefix, $i
             if (Get-AzVM -ResourceGroupName $ResourceGroupName -Name $name -ErrorAction SilentlyContinue) { continue }
-            try {
-                $found = @(Find-AvdEntraDevice -Name $name)
-                if ($found.Count -eq 0) { continue }
-                if ($RemoveStaleEntraDevice) {
-                    Write-Warning "Entra ID has $($found.Count) device record(s) named $name but no VM. Removing as asked (-RemoveStaleEntraDevice)."
-                    $null = Remove-AvdEntraDevice -Name $name -Confirm:$false
-                } else {
-                    $stale += $name
-                }
-            } catch {
-                Write-Warning "Could not check Entra for a device named ${name}: $($_.Exception.Message)"
-            }
+            $found = @(Find-AvdEntraDevice -Name $name)
+            if ($found.Count -gt 0) { $stale += $name }
+
         }
         if ($stale.Count -gt 0) {
-            throw "Entra ID still has device records for $($stale -join ', ') from deleted hosts; the Entra join would fail with error_hostname_duplicate. Delete them in Entra admin center > Devices > All devices (search each name), then re-run. Or re-run with -RemoveStaleEntraDevice to let the build delete them."
+            throw "Entra ID still has device records for $($stale -join ', ') from deleted hosts; the Entra join would fail with error_hostname_duplicate. Automatic directory cleanup is disabled; verify exact object identities and ownership before any separate manual cleanup."
         }
     }
 }

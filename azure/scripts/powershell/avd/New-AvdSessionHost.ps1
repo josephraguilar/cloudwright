@@ -214,11 +214,17 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+if ($RemoveStaleEntraDevice) { throw 'RemoveStaleEntraDevice is disabled: automatic directory cleanup cannot establish ownership by name. No changes were made.' }
+
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AzHelpers' 'AzHelpers.psd1') -Force -Verbose:$false
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AvdHelpers' 'AvdHelpers.psd1') -Force -Verbose:$false
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AvdBuild' 'AvdBuild.psd1') -Force -Verbose:$false
 Set-AzScriptDefault   # module functions do not inherit -WhatIf, -Verbose or -Confirm from a script; this hands them on
 $null = Assert-AzContext -SubscriptionId $SubscriptionId
+if ($JoinType -eq 'EntraId' -and @(Find-AvdEntraDevice -Name $VMName).Count -gt 0) {
+    throw 'A device with this name already exists. Automatic cleanup is disabled; verify its exact ownership before any separate manual cleanup. No VM was created.'
+}
+
 $verbose = ($VerbosePreference -eq 'Continue')
 
 if ($JoinType -eq 'ActiveDirectory' -and (-not $DomainName -or -not $DomainJoinCredential)) {

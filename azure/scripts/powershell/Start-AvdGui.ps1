@@ -68,6 +68,7 @@ param(
 #          ($this.Tag) and reach shared state through $Gui by dynamic scoping.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+throw 'Cloudwright safe release: Azure/AVD administration is disabled pending a reviewed read-only implementation.'
 
 if (-not $IsWindows) { throw 'Start-AvdGui.ps1 needs Windows (WPF). On other platforms use Start-AvdConsole.ps1.' }
 Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase, System.Xaml

@@ -96,6 +96,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..' '..')).Path
 $modules = Join-Path $PSScriptRoot '..' 'modules'
 Import-Module (Join-Path $modules 'M365Helpers' 'M365Helpers.psd1') -Force
+Assert-M365WriteAllowed   # Refuse legacy write tasks before sign-in, lookups, or prompts.
 Import-Module (Join-Path $modules 'OnboardingHelpers' 'OnboardingHelpers.psd1') -Force
 
 $settings = Get-M365Settings

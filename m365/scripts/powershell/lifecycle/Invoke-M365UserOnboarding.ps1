@@ -135,6 +135,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $modules = Join-Path $PSScriptRoot '..' 'modules'
 foreach ($m in 'M365Helpers', 'EntraHelpers', 'ExchangeHelpers') { Import-Module (Join-Path $modules $m "$m.psd1") -Force }
+Assert-M365WriteAllowed   # Refuse legacy write tasks before sign-in, lookups, or prompts.
 $settings = Get-M365Settings
 $c = Get-M365ClientConfig -Name $Client -Settings $settings
 $d = $c.newUserDefaults

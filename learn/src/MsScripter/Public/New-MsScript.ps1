@@ -52,6 +52,20 @@ function New-MsScript {
         }
     }
 
+    # Answers can also appear in line comments (rollback). Reject line/control
+    # characters recursively, including array items and hashtable keys/values.
+    $validateAnswer = {
+        param($Value)
+        if ($Value -is [System.Collections.IDictionary]) {
+            foreach ($key in $Value.Keys) { & $validateAnswer $key; & $validateAnswer $Value[$key] }
+        } elseif ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
+            foreach ($item in $Value) { & $validateAnswer $item }
+        } elseif ("$Value" -match '[\p{Cc}\u0085\u2028\u2029]') {
+            throw 'Answers must be single-line values without control characters.'
+        }
+    }
+    & $validateAnswer $Answers
+
     #region 0. Shared answers (build paths) -------------------------------------
     #   WHAT   Share = @{ ResourceGroupName = 'Name' } copies the answer for Name into
     #          ResourceGroupName when the latter was not answered on its own.

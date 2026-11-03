@@ -47,7 +47,10 @@ Describe 'Mandatory read-only release policy' {
         @'
 param($ModulePath)
 $ErrorActionPreference = 'Continue'
-try { Import-Module $ModulePath -Force -ErrorAction Stop; exit 2 } catch { exit 0 }
+try { Import-Module $ModulePath -Force -ErrorAction Continue } catch { }
+if (Get-Module M365Helpers) { exit 2 }
+if (Get-Command Invoke-M365Change -ErrorAction SilentlyContinue) { exit 3 }
+exit 0
 '@ | Set-Content $probe
         & $executable -NoProfile -File $probe -ModulePath (Join-Path $copy 'M365Helpers.psd1')
         $LASTEXITCODE | Should -Be 0
@@ -85,6 +88,35 @@ try { Import-Module $ModulePath -Force -ErrorAction Stop; exit 2 } catch { exit 
 }
 
 Describe 'Read-only authentication' {
+    It 'imports all Exchange reads reachable from the reviewed task catalog' {
+        $functions = @{}
+        foreach ($file in Get-ChildItem $script:Modules -Recurse -Include '*.psm1', '*.ps1') {
+            $ast = [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$null)
+            foreach ($fn in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) { $functions[$fn.Name] = $fn.Body }
+        }
+        $queue = [System.Collections.Generic.Queue[object]]::new()
+        foreach ($task in Get-M365Task -ReadOnly) { $queue.Enqueue([System.Management.Automation.Language.Parser]::ParseFile($task.Path, [ref]$null, [ref]$null)) }
+        $visited = @{}; $reads = @{}
+        while ($queue.Count) {
+            $ast = $queue.Dequeue()
+            foreach ($command in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] }, $true)) {
+                $name = $command.GetCommandName()
+                if (-not $name) { continue }
+                if ($functions.ContainsKey($name) -and -not $visited.ContainsKey($name)) { $visited[$name] = $true; $queue.Enqueue($functions[$name]) }
+                if ($name -match '^Get-(AcceptedDomain|Recipient|DistributionGroup|DkimSigningConfig|InboxRule|Mailbox|MailContact|AdminAuditLogConfig|AntiPhishPolicy|ExternalInOutlook|HostedOutboundSpamFilter|OrganizationConfig|TransportConfig)') { $reads[$name] = $true }
+                if ($name -eq 'Get-M365ExactRecipient') {
+                    # Its dynamic Get-$Kind call defaults to Recipient; explicit kinds
+                    # at reachable call sites must also be included.
+                    $reads['Get-Recipient'] = $true
+                    if ($command.Extent.Text -match '-Kind\s+[''"]?(Mailbox|MailContact|DistributionGroup)') { $reads["Get-$($Matches[1])"] = $true }
+                }
+            }
+        }
+        $allowed = & (Get-Module M365Helpers) { @(Get-M365ReadOnlyExchangeCommand) }
+        @($reads.Keys | Where-Object { $_ -notin $allowed }) | Should -BeNullOrEmpty
+        $reads.Keys | Should -Contain 'Get-MailContact'
+        $reads.Keys | Should -Contain 'Get-DistributionGroup'
+    }
     BeforeEach {
         $global:SafetyGraph = $null; $global:SafetyConnects = 0; $global:SafetyDisconnects = 0
         $global:M365ToolkitTargets = @{}

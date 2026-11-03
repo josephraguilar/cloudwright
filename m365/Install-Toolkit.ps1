@@ -123,7 +123,7 @@ $pairs = @(
             'msp.supportEmail' = 'Support mailbox clients and alerts should reach (e.g. support@msp.example)'
         } }
     @{ Example = 'config/gdap-roles.example.json'; Local = 'config/gdap-roles.local.json'; Hints = @{
-            'groups[0].id' = 'Object ID of the security group in our tenant that receives the GDAP roles (Admin Agents by default). Leave blank to fill later with entra/Get-M365Group.ps1'
+            'groups[0].id' = 'Object ID of the security group in our tenant that receives the GDAP roles (Cloudwright Readers by default). Leave blank to fill later with entra/Get-M365Group.ps1'
             'groups[1].id' = 'Object ID of a second (lower-privilege) security group, if your template has one'
         } }
 )

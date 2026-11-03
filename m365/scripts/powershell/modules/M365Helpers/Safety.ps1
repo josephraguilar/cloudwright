@@ -52,7 +52,7 @@ function Test-M365ReadOnlyGraphContext {
 function Get-M365ReadOnlyExchangeCommand {
     # CommandName limits imported cmdlets. It does NOT reduce the account's EXO
     # permissions: use a separately provisioned reader identity for a server boundary.
-    @('Get-AcceptedDomain', 'Get-Recipient', 'Get-DistributionGroupMember',
+    @('Get-AcceptedDomain', 'Get-Recipient', 'Get-MailContact', 'Get-DistributionGroup', 'Get-DistributionGroupMember',
         'Get-DkimSigningConfig', 'Get-InboxRule', 'Get-Mailbox', 'Get-MailboxPermission',
         'Get-MailboxRegionalConfiguration', 'Get-MailboxStatistics', 'Get-RecipientPermission',
         'Get-AdminAuditLogConfig', 'Get-AntiPhishPolicy', 'Get-ExternalInOutlook',

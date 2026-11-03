@@ -43,6 +43,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $modules = Join-Path $PSScriptRoot '..' 'modules'
 foreach ($m in 'M365Helpers', 'ExchangeHelpers', 'SecurityHelpers') { Import-Module (Join-Path $modules $m "$m.psd1") -Force }
+Assert-M365WriteAllowed   # Refuse legacy write tasks before sign-in, lookups, or prompts.
 $null = Assert-M365Graph -TenantId $TenantId -Scopes 'Policy.Read.All', 'Policy.ReadWrite.ConditionalAccess'
 #endregion
 

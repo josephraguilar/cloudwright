@@ -85,7 +85,7 @@ if ($Phase -contains 'Internal') {
     }
     Test-Safely '1.7' "Inbox rules for $($c.name) in $shared" {
         $rules = @(Get-InboxRule -Mailbox $shared | Where-Object { $_.Name -like "Client - $($c.name)*" })
-        Add-Check '1.7' "Inbox rules for $($c.name) in $shared" ($rules.Count -ge 2) "$($rules.Count) rule(s): $($rules.Name -join '; ')"
+        Add-Check '1.7' "Inbox rules for $($c.name) in $shared" ($rules.Count -ge 2) "$($rules.Count) rule(s): $(($rules | ForEach-Object Name) -join '; ')"
     }
     if (Test-StepApplicable '1.11a') {
         foreach ($poc in $c.poc | Where-Object email) {
@@ -100,7 +100,7 @@ if ($Phase -contains 'Internal') {
     Test-Safely '5.7' "GDAP relationship active for $($c.name)" {
         $rels = @(Get-M365GdapRelationship -CustomerTenantId (Resolve-M365TenantId -TenantId $c.tenantId))
         $active = @($rels | Where-Object Status -eq 'active')
-        Add-Check '5.7' "GDAP relationship active for $($c.name)" ($active.Count -gt 0) "$($active.Count) active of $($rels.Count); roles: $(($active.Roles | Select-Object -Unique) -join ', ')"
+        Add-Check '5.7' "GDAP relationship active for $($c.name)" ($active.Count -gt 0) "$($active.Count) active of $($rels.Count); roles: $(($active | ForEach-Object Roles | Select-Object -Unique) -join ', ')"
     }
 }
 #endregion
