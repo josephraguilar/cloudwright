@@ -11,6 +11,12 @@ Invoke-Pester -Path ./tests
 
 What is covered:
 
+- `Safety`: the unmodified read-only policy, direct writes without a plan, forged plans,
+  Graph scope/context checks, Exchange read imports, and prepared-command injection.
+- `EndToEnd` also runs every task with no recorder and checks for zero writes/browser
+  launches under the default policy. Legacy mutation-unit tests mock the policy against
+  fake APIs; the GDAP hostless tests override it only in their temporary mirror.
+
 - `M365Helpers`: password generation, settings and client config validation and derivation, tenant GUID resolution, DNS-over-HTTPS normalization; `Invoke-M365Change` (plan text, secrets hidden, quotes escaped, dry run runs nothing, approved plan enforced, placeholders, refusal when the verified connection changed or nobody signed in, audit log without secrets); Exchange tenant checks against a fake module where cmdlets follow the newest connection (client A, B, A again ends in A; one connection at a time; Graph/Exchange mismatch refused).
 - `ExchangeHelpers`: SPF analysis (clean, missing EXO include, +all, two records, none, 11 lookups), DMARC analysis and the suggested record, template rendering, mail-contact idempotency and `-WhatIf`.
 - `EntraHelpers`: Conditional Access exclusion preserves every other list and skips already-excluded policies; cloud user creation leaves existing users alone and sets no-expiry.

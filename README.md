@@ -3,11 +3,16 @@
 A PowerShell toolkit for learning Microsoft commands and administering Azure, Azure
 Virtual Desktop, and Microsoft 365.
 
+**Microsoft 365 safe mode:** option 3 / `cloudwright m365` permits only inspection and
+reporting. Tenant writes and GDAP approvals are disabled. Azure/AVD remains a separate,
+write-capable tool. Read [the safety boundary and upgrade instructions](docs/SAFETY.md)
+before signing in; use a reader account rather than Global Administrator.
+
 ```powershell
 cloudwright                 # Choose an area
 cloudwright learn           # Build and understand commands
 cloudwright azure           # Manage Azure and AVD
-cloudwright m365            # Administer Microsoft 365
+cloudwright m365            # Inspect Microsoft 365 in read-only safe mode
 ```
 
 ## One-line download and launch
@@ -29,6 +34,8 @@ that variable is unset. Keep this directory: it also holds your local settings a
 generated output. Subsequent bootstrap runs reuse it and preserve those files;
 they do not automatically upgrade the snapshot. For a later snapshot, use a new
 `-InstallPath` and transfer only the local settings you need from the old directory.
+The new bootstrap refuses older cached snapshots without mandatory Microsoft 365 safe
+mode. Existing installed commands are not upgraded automatically.
 
 After the first install, just run `cloudwright` in any PowerShell 7 session. To
 download without opening the menu or to choose a location, save the bootstrap and run:
@@ -109,8 +116,8 @@ Each selected area runs in a fresh PowerShell process. In-memory sessions from y
 calling shell are not passed into it; its existing sign-in flow selects its context.
 
 Learn produces text and never executes generated commands. Azure keeps its existing
-context checks and `-WhatIf` behavior. Microsoft 365 keeps its tenant checks and
-reviewed-change plan. Installation does not run a tenant operation.
+context checks and `-WhatIf` behavior. Microsoft 365 adds a mandatory read-only policy
+in front of its legacy change-plan code. Installation does not run a tenant operation.
 
 ## Repository layout
 

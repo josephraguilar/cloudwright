@@ -27,11 +27,11 @@
             Title = 'Create the service principal'
             What  = 'POST /servicePrincipals with the AppId.'
             Why   = 'Without it the app cannot be granted permissions or roles in this tenant.'
-            Raw   = @('New-MgServicePrincipal -AppId (Get-MgApplication -Filter "displayName eq ''{{DisplayName:raw}}''").AppId')
+            Raw   = @('New-MgServicePrincipal -AppId (Get-MgApplication -Filter {{DisplayName:filter:displayName}}).AppId')
         }
     )
-    Verify   = @('Get-MgApplication -Filter "displayName eq ''{{DisplayName:raw}}''" | Select-Object DisplayName, AppId, Id, SignInAudience')
-    Rollback = @('Remove-MgApplication -ApplicationId (Get-MgApplication -Filter "displayName eq ''{{DisplayName:raw}}''").Id    # Also removes the service principal. Soft-deleted 30 days.')
+    Verify   = @('Get-MgApplication -Filter {{DisplayName:filter:displayName}} | Select-Object DisplayName, AppId, Id, SignInAudience')
+    Rollback = @('Remove-MgApplication -ApplicationId (Get-MgApplication -Filter {{DisplayName:filter:displayName}}).Id    # Also removes the service principal. Soft-deleted 30 days.')
     Docs     = @('https://learn.microsoft.com/powershell/module/microsoft.graph.applications/new-mgapplication')
     Status   = 'Untested'
 }

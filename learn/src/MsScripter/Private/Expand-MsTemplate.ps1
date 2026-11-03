@@ -36,12 +36,25 @@ function Expand-MsTemplate {
         if ($field.Type -eq 'Secret') {
             return Format-MsSecret -Field $field
         }
-        if ($raw) { return "$value" }
+        if ($match.Groups['filter'].Success) {
+            $property = $match.Groups['property'].Value
+            $escaped = "$value".Replace("'", "''")
+            return Format-MsValue -Value "$property eq '$escaped'"
+        }
+        if ($raw) {
+            # Raw templates can appear inside PowerShell and OData quotes or comments.
+            # Until converted to structured literals, accept only simple name/path text.
+            # Quotes, dollar expressions, control characters, and shell syntax fail closed.
+            if ("$value" -notmatch '\A[A-Za-z0-9 ._@:/\\-]*\z') {
+                throw "Field '$name' contains characters this raw template cannot safely render. Use a structured literal template."
+            }
+            return "$value"
+        }
         $literal = Format-MsValue -Value $value -Type $field.Type
         if ($null -eq $literal) { return '' }
         return $literal
     }
-    return [regex]::Replace($Text, '\{\{(?<name>[A-Za-z][A-Za-z0-9_]*)(?<raw>:raw)?\}\}', $evaluator)
+    return [regex]::Replace($Text, '\{\{(?<name>[A-Za-z][A-Za-z0-9_]*)(?:(?<raw>:raw)|(?<filter>:filter:(?<property>displayName|mailNickname)))?\}\}', $evaluator)
 }
 
 function Format-MsSecret {
@@ -52,7 +65,7 @@ function Format-MsSecret {
     [CmdletBinding()]
     [OutputType([string])]
     param([Parameter(Mandatory)] [hashtable]$Field)
-    $label = ($Field.Label -replace "'", "''")
+    $label = [System.Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent($Field.Label)
     $kind = if ($Field.ContainsKey('SecretKind')) { $Field.SecretKind } else { 'Credential' }
     switch ($kind) {
         'SecureString' { return "(Read-Host -Prompt '$label' -AsSecureString)" }

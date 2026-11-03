@@ -4,6 +4,12 @@ Part of [Cloudwright](../README.md). After installing the root launcher, run
 `cloudwright azure` or `cloudwright azure -Console`.
 Direct-script examples below run from this `azure/` directory.
 
+**Azure remains write-capable and is not covered by Microsoft 365 safe mode.**
+Automatic Entra device and Kerberos application cleanup by display name is disabled
+pending verified object ownership. Teardown may leave directory objects for manual
+review, and rejoin operations requiring that cleanup stop. See the
+[safety review and unresolved findings](../docs/SECURITY-REVIEW.md) before use.
+
 Personal repo for learning Azure and for building Nerdio-style Azure Virtual Desktop
 (AVD) automation without the UI: PowerShell scripts, Bicep, Automation runbooks, and notes.
 

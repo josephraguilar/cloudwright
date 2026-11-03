@@ -2,6 +2,46 @@ BeforeAll {
     $script:ManifestPath = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'AvdBuild' 'AvdBuild.psd1'
 }
 
+Describe 'Directory cleanup safety' {
+    BeforeAll {
+        Import-Module $script:ManifestPath -Force
+        function global:Invoke-AzRestMethod { [CmdletBinding()] param($Method, $Uri) throw 'Unexpected live API call' }
+    }
+    AfterAll { Remove-Item Function:\Invoke-AzRestMethod -ErrorAction SilentlyContinue }
+
+    It 'rejects filter-injection input before making an API request' {
+        Mock Invoke-AzRestMethod -ModuleName AvdBuild { throw 'Must not call Graph' }
+        { Find-AvdEntraDevice -Name "x' or id ne '" } | Should -Throw
+        Should -Invoke Invoke-AzRestMethod -ModuleName AvdBuild -Times 0
+    }
+
+    It 'uses an encoded exact-name lookup and checks the returned name' {
+        Mock Invoke-AzRestMethod -ModuleName AvdBuild {
+            [pscustomobject]@{ StatusCode = 200; Content = '{"value":[{"id":"device-1","displayName":"avd-lab-01"}]}' }
+        }
+        @(Find-AvdEntraDevice -Name 'avd-lab-01').Count | Should -Be 1
+        Should -Invoke Invoke-AzRestMethod -ModuleName AvdBuild -Times 1 -ParameterFilter {
+            $Method -eq 'GET' -and [uri]::UnescapeDataString($Uri) -ceq "https://graph.microsoft.com/v1.0/devices?`$filter=displayName eq 'avd-lab-01'"
+        }
+    }
+
+    It 'refuses unrelated results even when the server reports success' {
+        Mock Invoke-AzRestMethod -ModuleName AvdBuild {
+            [pscustomobject]@{ StatusCode = 200; Content = '{"value":[{"id":"device-1","displayName":"unrelated"}]}' }
+        }
+        { Find-AvdEntraDevice -Name 'avd-lab-01' } | Should -Throw '*different display name*'
+    }
+
+    It 'blocks name-based device and application deletion even with confirmation disabled' {
+        Mock Invoke-AzRestMethod -ModuleName AvdBuild { throw 'Must not call Graph' }
+        { Remove-AvdEntraDevice -Name 'avd-lab-01' -Confirm:$false } | Should -Throw '*disabled*'
+        { Remove-AvdEntraDevice -Name "x' or id ne '" -WhatIf } | Should -Throw '*disabled*'
+        { Remove-AvdStorageKerberosApp -StorageAccountName 'stlab' -Confirm:$false } | Should -Throw '*disabled*'
+        { Remove-AvdStorageKerberosApp -StorageAccountName "x' or id ne '" -WhatIf } | Should -Throw '*disabled*'
+        Should -Invoke Invoke-AzRestMethod -ModuleName AvdBuild -Times 0
+    }
+}
+
 Describe 'AvdBuild module' {
     It 'has a valid manifest' {
         { Test-ModuleManifest -Path $script:ManifestPath -ErrorAction Stop } | Should -Not -Throw

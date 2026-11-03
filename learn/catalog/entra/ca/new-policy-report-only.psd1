@@ -24,8 +24,8 @@
             Raw   = @('New-MgIdentityConditionalAccessPolicy -BodyParameter @{ displayName = {{PolicyName}}; state = ''enabledForReportingButNotEnforced''; conditions = @{ users = @{ includeGroups = @({{GroupId}}); excludeGroups = @({{ExcludeGroupId}}) }; applications = @{ includeApplications = @(''All'') }; clientAppTypes = @(''all'') }; grantControls = @{ operator = ''OR''; builtInControls = @(''mfa'') } }')
         }
     )
-    Verify   = @('Get-MgIdentityConditionalAccessPolicy -Filter "displayName eq ''{{PolicyName:raw}}''" | Select-Object Id, DisplayName, State, CreatedDateTime')
-    Rollback = @('Remove-MgIdentityConditionalAccessPolicy -ConditionalAccessPolicyId (Get-MgIdentityConditionalAccessPolicy -Filter "displayName eq ''{{PolicyName:raw}}''").Id')
+    Verify   = @('Get-MgIdentityConditionalAccessPolicy -Filter {{PolicyName:filter:displayName}} | Select-Object Id, DisplayName, State, CreatedDateTime')
+    Rollback = @('Remove-MgIdentityConditionalAccessPolicy -ConditionalAccessPolicyId (Get-MgIdentityConditionalAccessPolicy -Filter {{PolicyName:filter:displayName}}).Id')
     Docs     = @('https://learn.microsoft.com/graph/api/conditionalaccessroot-post-policies', 'https://learn.microsoft.com/entra/identity/conditional-access/howto-conditional-access-insights-reporting')
     Status   = 'Untested'
 }

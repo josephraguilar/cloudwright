@@ -47,7 +47,7 @@ try { $settings = Get-M365Settings } catch {
     $settings = $null
 }
 $script:Client = $null
-$catalog = @(Get-M365Task)
+$catalog = @(Get-M365Task -ReadOnly)
 #endregion
 
 #region 3. Console helpers -------------------------------------------------------
@@ -89,6 +89,10 @@ function Invoke-ReviewedCommand {
     #   GOTCHA $ConfirmPreference = 'None' here (inherited by the script): the confirmation is the
     #          typed "yes" after the change list, not a second prompt per change.
     param([string]$Line, [bool]$IsWrite, [bool]$Interactive)
+    if (Test-M365ReadOnly) {
+        if ($IsWrite) { throw 'Microsoft 365 safe mode: change tasks are disabled.' }
+        Assert-M365ReadOnlyCommand -Line $Line
+    }
     $ConfirmPreference = 'None'
     Write-Host ''
     Write-Host '  Command:' -ForegroundColor White
@@ -275,6 +279,7 @@ $menu = @(
 #   GOTCHA Dot-sourcing (. ./Start-M365Console.ps1) loads the functions without starting the
 #          menu, so tests can drive Invoke-ReviewedCommand directly.
 if ($MyInvocation.InvocationName -eq '.') { return }
+Write-Host 'Microsoft 365 SAFE MODE - read-only tenant operations; changes are disabled.' -ForegroundColor Green
 if ($Client) { $script:Client = Get-M365ClientConfig -Name $Client -Settings $settings } else { Select-Client }
 while ($true) {
     if (-not $script:Client) { Write-Host 'No tenant selected.' -ForegroundColor Yellow; Select-Client; if (-not $script:Client) { break } }

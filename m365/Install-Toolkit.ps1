@@ -177,7 +177,9 @@ Write-Head 'WebView2 (in-app approval window, optional)'
 $webView2Dir = Join-Path $repoRoot 'scripts' 'powershell' 'gui' 'lib' 'webview2'
 $needed = @('Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.Wpf.dll', 'WebView2Loader.dll')
 $have = @($needed | Where-Object { Test-Path (Join-Path $webView2Dir $_) })
-if ($have.Count -eq $needed.Count) {
+if (Test-M365ReadOnly) {
+    Write-Skip 'WebView2 is not needed: customer approval windows are disabled in safe mode'
+} elseif ($have.Count -eq $needed.Count) {
     Write-Ok 'WebView2 assemblies present'
 } elseif ($SkipWebView2 -or -not $askable -or -not $IsWindows) {
     if ($WhatIfPreference -and $IsWindows -and -not $SkipWebView2) { Write-Would "offer to download Microsoft.Web.WebView2 $webView2Version (SHA-512 and signature checked)" }

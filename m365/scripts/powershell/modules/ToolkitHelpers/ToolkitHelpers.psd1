@@ -7,6 +7,7 @@
     PowerShellVersion = '7.2'
     FunctionsToExport = @(
         'Get-M365Task'
+        'Assert-M365ReadOnlyCommand'
         'Get-M365TaskArea'
         'Format-M365Argument'
         'Format-M365CommandLine'

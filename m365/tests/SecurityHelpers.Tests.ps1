@@ -4,6 +4,9 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test helpers build objects; they change nothing.')]
 param()
 
+# Legacy domain behavior runs only against the fake APIs in this test file.
+# Mock the release policy here so these tests still exercise plan matching and
+# mutation semantics. Safety.Tests.ps1 and EndToEnd.Tests.ps1 use the real policy.
 BeforeAll {
     $modules = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules'
     Import-Module (Join-Path $modules 'M365Helpers' 'M365Helpers.psd1') -Force
@@ -72,6 +75,10 @@ AfterAll {
 }
 
 Describe 'SecurityHelpers' {
+    BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
+    }
+
     It 'has a valid manifest' { { Test-ModuleManifest -Path $script:ManifestPath -ErrorAction Stop } | Should -Not -Throw }
     It 'loads the example baseline with every check complete' {
         $script:Baseline.checks.Count | Should -Be 25

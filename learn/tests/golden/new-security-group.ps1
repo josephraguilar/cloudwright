@@ -45,7 +45,7 @@ $group
 
 #region 2. Verify ------------------------------------------------------------
 #   WHAT   Read back what was created. Compare with what you asked for.
-Get-MgGroup -Filter "displayName eq 'AVD Users - Lab'" | Format-List Id, DisplayName, MailNickname, SecurityEnabled, CreatedDateTime
+Get-MgGroup -Filter 'displayName eq ''AVD Users - Lab''' | Format-List Id, DisplayName, MailNickname, SecurityEnabled, CreatedDateTime
 #endregion
 
 #region 3. Rollback (only if you need to undo) -------------------------------

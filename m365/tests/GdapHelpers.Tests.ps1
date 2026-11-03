@@ -1,3 +1,6 @@
+# Legacy domain behavior runs only against the fake APIs in this test file.
+# Mock the release policy here so these tests still exercise plan matching and
+# mutation semantics. Safety.Tests.ps1 and EndToEnd.Tests.ps1 use the real policy.
 BeforeAll {
     $script:RepoRoot = Join-Path $PSScriptRoot '..'
     $modules = Join-Path $script:RepoRoot 'scripts' 'powershell' 'modules'
@@ -8,7 +11,7 @@ BeforeAll {
 
     $script:HomeGuid = '11111111-1111-1111-1111-111111111111'
     $script:Tid = 'cccccccc-0000-0000-0000-000000000001'
-    $script:AdminAgents = '3bce0ca3-a753-4fe5-b425-af6546ee54fc'
+    $script:AdminAgents = '11111111-1111-1111-1111-111111111111'
 
     # Fake Graph. Writes are GLOBAL functions: Invoke-M365Change resolves the command it runs
     # itself, so Pester mocks (aliases) never see writes. Every write lands in $global:GdapFake.Writes.
@@ -152,7 +155,10 @@ AfterAll {
 }
 
 Describe 'GdapHelpers module' {
+
     BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
+        Mock Test-M365ReadOnly -ModuleName GdapHelpers { $false }
         Reset-Fake
         Set-M365ChangeTarget -Service Graph -Label 'examplemsp.onmicrosoft.com' -TenantId $script:HomeGuid
     }
@@ -666,6 +672,11 @@ Describe 'GdapHelpers module' {
 }
 
 Describe 'M365Helpers retry and logging' {
+    BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
+        Mock Test-M365ReadOnly -ModuleName GdapHelpers { $false }
+    }
+
     It 'retries transient errors and then succeeds' {
         $script:calls = 0
         $r = Invoke-M365WithRetry -BaseDelaySeconds 1 -MaxAttempts 3 -Operation test { $script:calls++; if ($script:calls -lt 2) { throw 'Response status code does not indicate success: 429 (TooManyRequests).' }; 'ok' } 3>$null
@@ -693,6 +704,7 @@ Describe 'M365Helpers retry and logging' {
 }
 
 Describe 'Partner scripts end to end (stubbed Graph)' {
+
     # The scripts re-import the modules with -Force and read settings from <repo>/config, so
     # they run from a copy under TestDrive with a filled settings file. Graph is the fake above;
     # a fake Microsoft.Graph.Authentication folder satisfies Assert-M365Graph's install check.
@@ -703,6 +715,12 @@ Describe 'Partner scripts end to end (stubbed Graph)' {
             $null = New-Item -ItemType Directory -Path $dest -Force
             Copy-Item (Join-Path $script:RepoRoot 'scripts' 'powershell' 'modules' $m '*') $dest -Recurse
         }
+        # This mirror exercises legacy GDAP mutation semantics in hostless runspaces
+        # against the fake Graph. Pester mocks cannot cross runspaces or -Force imports.
+        # Override only the mirror's policy; the shipped source remains read-only and
+        # EndToEnd.Tests.ps1 independently exercises every script with the real policy.
+        Add-Content (Join-Path $script:Mirror 'scripts/powershell/modules/M365Helpers/Safety.ps1') `
+            'function Test-M365ReadOnly { [CmdletBinding()] param() return $false }'
         Copy-Item (Join-Path $script:RepoRoot 'scripts' 'powershell' 'partner') (Join-Path $script:Mirror 'scripts' 'powershell' 'partner') -Recurse
         $config = Join-Path $script:Mirror 'config'
         $null = New-Item -ItemType Directory -Path $config -Force

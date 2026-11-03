@@ -453,6 +453,14 @@ function Open-GdapApprovalPage {
         [Parameter()]
         [switch]$NoPrivate
     )
+    if (Test-M365ReadOnly) { throw 'Safe mode: opening a customer access approval page is disabled.' }
+    $uri = $null
+    if (-not [uri]::TryCreate($Url, [UriKind]::Absolute, [ref]$uri) -or
+        $uri.Scheme -ne 'https' -or $uri.Host -ne 'admin.microsoft.com' -or
+        $uri.UserInfo -or -not $uri.IsDefaultPort) {
+        throw 'GDAP approval URLs must use https://admin.microsoft.com.'
+    }
+    $Url = $uri.AbsoluteUri
     $pf = [Environment]::GetEnvironmentVariable('ProgramFiles')
     $pf86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
     $local = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')

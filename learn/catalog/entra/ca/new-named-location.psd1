@@ -22,8 +22,8 @@
             Raw   = @('New-MgIdentityConditionalAccessNamedLocation -BodyParameter @{ ''@odata.type'' = ''#microsoft.graph.ipNamedLocation''; displayName = {{Name}}; isTrusted = {{Trusted}}; ipRanges = @({{IpRanges}} | ForEach-Object { @{ ''@odata.type'' = ''#microsoft.graph.iPv4CidrRange''; cidrAddress = $_ } }) }')
         }
     )
-    Verify   = @('Get-MgIdentityConditionalAccessNamedLocation -Filter "displayName eq ''{{Name:raw}}''" | Select-Object Id, DisplayName, @{ n = ''Trusted''; e = { $_.AdditionalProperties.isTrusted } }, @{ n = ''Ranges''; e = { $_.AdditionalProperties.ipRanges.cidrAddress } }')
-    Rollback = @('Remove-MgIdentityConditionalAccessNamedLocation -NamedLocationId (Get-MgIdentityConditionalAccessNamedLocation -Filter "displayName eq ''{{Name:raw}}''").Id')
+    Verify   = @('Get-MgIdentityConditionalAccessNamedLocation -Filter {{Name:filter:displayName}} | Select-Object Id, DisplayName, @{ n = ''Trusted''; e = { $_.AdditionalProperties.isTrusted } }, @{ n = ''Ranges''; e = { $_.AdditionalProperties.ipRanges.cidrAddress } }')
+    Rollback = @('Remove-MgIdentityConditionalAccessNamedLocation -NamedLocationId (Get-MgIdentityConditionalAccessNamedLocation -Filter {{Name:filter:displayName}}).Id')
     Docs     = @('https://learn.microsoft.com/graph/api/conditionalaccessroot-post-namedlocations')
     Status   = 'Untested'
 }

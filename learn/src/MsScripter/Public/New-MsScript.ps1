@@ -44,6 +44,14 @@ function New-MsScript {
         [Parameter()] [datetime]$Date = (Get-Date)
     )
 
+    # Context appears in generated comments as well as quoted commands. Reject
+    # comment terminators and line breaks before either output style is rendered.
+    foreach ($value in $Context.Values) {
+        if ("$value" -match '[\r\n\x00\x85\u2028\u2029]|#>') {
+            throw 'Context values must be single-line text without a PowerShell comment terminator.'
+        }
+    }
+
     #region 0. Shared answers (build paths) -------------------------------------
     #   WHAT   Share = @{ ResourceGroupName = 'Name' } copies the answer for Name into
     #          ResourceGroupName when the latter was not answered on its own.
@@ -127,8 +135,8 @@ function New-MsScript {
     $null = $out.AppendLine((Format-MsComment -Tag 'WHAT' -Text 'Confirm you are signed in to the tenant and subscription you think you are.'))
     $null = $out.AppendLine((Format-MsComment -Tag 'WHY' -Text 'Running the right script against the wrong tenant is the classic mistake. Check before every region, not just this one.'))
     if ('Azure' -in $auth) {
-        $null = $out.AppendLine('# Connect-AzAccount' + $(if ($Context.ContainsKey('TenantId')) { " -Tenant '$($Context.TenantId)'" }))
-        if ($Context.ContainsKey('SubscriptionId')) { $null = $out.AppendLine("# Set-AzContext -Subscription '$($Context.SubscriptionId)'") }
+        $null = $out.AppendLine('# Connect-AzAccount' + $(if ($Context.ContainsKey('TenantId')) { " -Tenant $(Format-MsValue $Context.TenantId)" }))
+        if ($Context.ContainsKey('SubscriptionId')) { $null = $out.AppendLine("# Set-AzContext -Subscription $(Format-MsValue $Context.SubscriptionId)") }
         $null = $out.AppendLine('Get-AzContext | Format-List Account, Tenant, Subscription')
     }
     if ('Graph' -in $auth) {

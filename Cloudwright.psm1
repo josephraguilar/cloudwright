@@ -116,7 +116,7 @@ function Start-Cloudwright {
         Write-Host 'Cloudwright' -ForegroundColor Cyan
         Write-Host '  1. Learn Microsoft commands'
         Write-Host '  2. Manage Azure and AVD'
-        Write-Host '  3. Manage Microsoft 365'
+        Write-Host '  3. Manage Microsoft 365 (SAFE MODE: read-only)'
         Write-Host '  Q. Quit'
         while ($Area -eq 'menu') {
             $choice = "$(Read-Host 'Choose an area')".Trim().ToLowerInvariant()

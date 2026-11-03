@@ -163,7 +163,7 @@ function Test-MsTaskDefinition {
         if ($Task.ContainsKey($listKey)) { foreach ($line in @($Task[$listKey])) { $templates.Add("$line") } }
     }
     foreach ($t in $templates) {
-        foreach ($m in [regex]::Matches($t, '\{\{([A-Za-z][A-Za-z0-9_]*)(?::raw)?\}\}')) {
+        foreach ($m in [regex]::Matches($t, '\{\{([A-Za-z][A-Za-z0-9_]*)(?::raw|:filter:(?:displayName|mailNickname))?\}\}')) {
             if ($m.Groups[1].Value -notin $fieldNames) { $problems.Add("Template token '$($m.Value)' does not name a field.") }
         }
     }

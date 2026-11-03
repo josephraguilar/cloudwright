@@ -25,8 +25,8 @@ function Format-MsOneLiner {
 
     if ($WithContext) {
         if ('Azure' -in $auth) {
-            $lines.Add('# Connect-AzAccount' + $(if ($Context.ContainsKey('TenantId')) { " -Tenant '$($Context.TenantId)'" }))
-            if ($Context.ContainsKey('SubscriptionId')) { $lines.Add("# Set-AzContext -Subscription '$($Context.SubscriptionId)'") }
+            $lines.Add('# Connect-AzAccount' + $(if ($Context.ContainsKey('TenantId')) { " -Tenant $(Format-MsValue $Context.TenantId)" }))
+            if ($Context.ContainsKey('SubscriptionId')) { $lines.Add("# Set-AzContext -Subscription $(Format-MsValue $Context.SubscriptionId)") }
         }
         if ('Graph' -in $auth) {
             $scopes = @($Definitions | ForEach-Object { if ($_.Requires.ContainsKey('Scopes')) { $_.Requires.Scopes } } | Select-Object -Unique)

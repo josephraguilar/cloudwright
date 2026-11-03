@@ -39,8 +39,8 @@ function Format-MsValue {
             if ($Value -is [string]) { $Value = ConvertFrom-MsFieldText -Text $Value -Type Hashtable }
             if (-not $Value -or $Value.Count -eq 0) { return $null }
             $pairs = foreach ($k in ($Value.Keys | Sort-Object)) {
-                $key = if ($k -match '^[A-Za-z_][A-Za-z0-9_]*$') { $k } else { "'$($k -replace "'", "''")'" }
-                "$key = '$("$($Value[$k])" -replace "'", "''")'"
+                $key = if ($k -match '^[A-Za-z_][A-Za-z0-9_]*$') { $k } else { "'$([System.Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent("$k"))'" }
+                "$key = '$([System.Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent("$($Value[$k])"))'"
             }
             return "@{ $($pairs -join '; ') }"
         }
@@ -48,12 +48,12 @@ function Format-MsValue {
             if ($Value -is [string]) { $Value = ConvertFrom-MsFieldText -Text $Value -Type MultiChoice }
             $items = @($Value | Where-Object { "$_" -ne '' })
             if ($items.Count -eq 0) { return $null }
-            return "@($(($items | ForEach-Object { "'$("$_" -replace "'", "''")'" }) -join ', '))"
+            return "@($(($items | ForEach-Object { "'$([System.Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent("$_"))'" }) -join ', '))"
         }
         default {
             $text = "$Value"
             if ($text -eq '') { return $null }
-            return "'$($text -replace "'", "''")'"
+            return "'$([System.Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent($text))'"
         }
     }
 }

@@ -1,3 +1,6 @@
+# Legacy domain behavior runs only against the fake APIs in this test file.
+# Mock the release policy here so these tests still exercise plan matching and
+# mutation semantics. Safety.Tests.ps1 and EndToEnd.Tests.ps1 use the real policy.
 BeforeAll {
     $modules = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules'
     Import-Module (Join-Path $modules 'M365Helpers' 'M365Helpers.psd1') -Force
@@ -128,7 +131,9 @@ AfterAll {
 }
 
 Describe 'EntraHelpers module' {
+
     BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
         Reset-FakeGraph
         Set-M365ChangeTarget -Service Graph -Label 'contoso.onmicrosoft.com'
     }
@@ -652,6 +657,10 @@ Describe 'EntraHelpers module' {
 }
 
 Describe 'entra/ and lifecycle/ scripts (static checks)' {
+    BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
+    }
+
     BeforeAll {
         $root = Join-Path $PSScriptRoot '..' 'scripts' 'powershell'
         $script:Scripts = @(Get-ChildItem (Join-Path $root 'entra'), (Join-Path $root 'lifecycle') -Filter '*.ps1' | ForEach-Object {

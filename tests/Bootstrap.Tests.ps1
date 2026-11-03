@@ -7,7 +7,7 @@ BeforeAll {
     foreach ($file in 'Cloudwright.psd1', 'Cloudwright.psm1', 'Install-Cloudwright.ps1') {
         Copy-Item -LiteralPath (Join-Path $script:Root $file) -Destination $script:Fixture
     }
-    foreach ($file in 'learn/Start-MsScripter.ps1', 'azure/scripts/powershell/Start-AvdConsole.ps1', 'm365/Start-Toolkit.ps1') {
+    foreach ($file in 'learn/Start-MsScripter.ps1', 'azure/scripts/powershell/Start-AvdConsole.ps1', 'm365/Start-Toolkit.ps1', 'm365/scripts/powershell/modules/M365Helpers/Safety.ps1') {
         $path = Join-Path $script:Fixture $file
         $null = New-Item -ItemType Directory -Path (Split-Path $path) -Force
         Set-Content -LiteralPath $path -Value "throw 'A tenant entry point must not run during installation.'"
@@ -30,7 +30,7 @@ Describe 'Cloudwright download bootstrap' {
 
     It 'downloads one pinned snapshot anonymously and installs a working command' {
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
-        cloudwright version | Should -Be '0.1.0'
+        cloudwright version | Should -Be '0.2.0'
         $record = Get-Content (Join-Path $script:Destination 'Cloudwright.download.json') -Raw | ConvertFrom-Json
         $record.Commit | Should -Be $script:Commit
         $location = Get-Content (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.location.json') -Raw | ConvertFrom-Json
@@ -52,7 +52,7 @@ Describe 'Cloudwright download bootstrap' {
             Invoke-Expression ('& {' + $code + "`n} -InstallPath `$script:Destination -ModulePath `$script:ModuleBase -NoLaunch")
         } finally { Pop-Location }
         $ErrorActionPreference | Should -Be $before
-        cloudwright version | Should -Be '0.1.0'
+        cloudwright version | Should -Be '0.2.0'
     }
 
     It 'accepts a literal text-to-IEX pipeline with no script invocation context' {
@@ -95,6 +95,17 @@ Describe 'Cloudwright download bootstrap' {
         Test-Path -LiteralPath $script:ModuleBase | Should -BeFalse
         Should -Invoke Invoke-RestMethod -Times 0 -Exactly
         Should -Invoke Invoke-WebRequest -Times 0 -Exactly
+    }
+
+    It 'refuses to reuse an old snapshot and preserves its local files' {
+        & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
+        $marker = Join-Path $script:Destination 'Cloudwright.download.json'
+        @{ Tool = 'Cloudwright'; SchemaVersion = 1; Commit = $script:Commit } | ConvertTo-Json | Set-Content -LiteralPath $marker
+        $local = Join-Path $script:Destination 'm365/settings.local.json'
+        Set-Content -LiteralPath $local -Value '{"keep":true}'
+        { & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase } | Should -Throw '*predates mandatory*safe mode*'
+        (Get-Content -LiteralPath $local -Raw).Trim() | Should -Be '{"keep":true}'
+        Should -Invoke Invoke-RestMethod -Times 1 -Exactly
     }
 
     It 'refuses to replace an unrelated directory' {

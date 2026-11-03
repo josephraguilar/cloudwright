@@ -6,6 +6,7 @@
     Description       = 'Shared helpers for the Microsoft 365 administration scripts in this repo: settings, sign-in to a client tenant over GDAP, DNS lookups, passwords, Hudu.'
     PowerShellVersion = '7.2'
     FunctionsToExport = @(
+        'Test-M365ReadOnly'
         'Get-M365Settings'
         'Get-M365ClientConfig'
         'Resolve-M365TenantId'

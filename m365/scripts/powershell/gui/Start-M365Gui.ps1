@@ -64,7 +64,7 @@ $runsDir = [IO.Path]::GetFullPath((Join-Path $repoRoot 'runs'))
 $webView2Dir = Join-Path $guiRoot 'lib' 'webview2'
 $script:WebView2Available = @('Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.Wpf.dll', 'WebView2Loader.dll') |
     ForEach-Object { Test-Path (Join-Path $webView2Dir $_) } | Where-Object { -not $_ } | Measure-Object | ForEach-Object { $_.Count -eq 0 }
-$catalog = @(Get-M365Task)
+$catalog = @(Get-M365Task -ReadOnly)
 $clients = @(Get-ChildItem (Join-Path $repoRoot 'config' 'clients') -Filter '*.local.json' -ErrorAction SilentlyContinue | ForEach-Object {
         try { Get-M365ClientConfig -Path $_.FullName -Settings $settings } catch { Write-Warning "Skipping client config $($_.Name): $($_.Exception.Message)"; $null }
     } | Where-Object { $_ })
@@ -116,9 +116,22 @@ $script:Worker.Runspace.ApartmentState = 'MTA'; $script:Worker.Runspace.ThreadOp
 $boot = [powershell]::Create(); $boot.Runspace = $script:Worker.Runspace
 #   GOTCHA $ConfirmPreference = 'None': the worker has no console, so a script's own
 #          High-impact confirmation would throw. The GUI's confirmation (with the plan) replaces it.
-$bootScript = "Set-StrictMode -Version Latest; `$ConfirmPreference = 'None'; foreach (`$m in 'M365Helpers','GdapHelpers') { Import-Module (Join-Path '$modules' `$m (`$m + '.psd1')) -Force }; Set-Location '$repoRoot'"
-$null = $boot.AddScript($bootScript).Invoke()
-$boot.Dispose()
+$bootScript = {
+    param($ModuleRoot, $WorkingRoot)
+    Set-StrictMode -Version Latest
+    $ConfirmPreference = 'None'
+    foreach ($m in 'M365Helpers', 'GdapHelpers', 'ToolkitHelpers') {
+        Import-Module (Join-Path $ModuleRoot $m ($m + '.psd1')) -Force
+    }
+    Set-Location -LiteralPath $WorkingRoot
+}
+try {
+    $null = $boot.AddScript($bootScript.ToString()).AddArgument($modules).AddArgument($repoRoot).Invoke()
+    if ($boot.HadErrors) { throw "Could not initialize the safe-mode worker: $($boot.Streams.Error[0])" }
+} catch {
+    $script:Worker.Runspace.Dispose()
+    throw
+} finally { $boot.Dispose() }
 
 function Invoke-GuiJob {
     #   GOTCHA OnComplete runs later, from the timer, when the caller's local variables are
@@ -161,7 +174,7 @@ function Complete-CurrentJob {
 $shellXaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="365-MGMT" Width="1360" Height="920" MinWidth="1024" MinHeight="700"
+        Title="Cloudwright Microsoft 365 - SAFE MODE (read-only)" Width="1360" Height="920" MinWidth="1024" MinHeight="700"
         WindowStartupLocation="CenterScreen" Background="{DynamicResource BackgroundBrush}"
         FontFamily="{DynamicResource BodyFontFamily}" TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True">
   <Grid>
@@ -260,6 +273,10 @@ $script:Command = $null
 $script:CommandJob = {
     param($Text, $Mode, $Plan)
     $ErrorActionPreference = 'Stop'
+    if (Test-M365ReadOnly) {
+        if ($Mode -ne 'Read') { throw 'Microsoft 365 safe mode: change tasks are disabled.' }
+        Assert-M365ReadOnlyCommand -Line $Text
+    }
     switch ($Mode) {
         'DryRun' { Start-M365ChangeRecording }
         'Run' { Start-M365ChangeRecording -ApprovedPlan @($Plan) }
@@ -291,13 +308,13 @@ function Show-DockState {
     $cmd = $script:Command
     $interactive = [bool]($cmd -and $cmd.Interactive)
     $planReady = [bool]($cmd -and $cmd.IsWrite -and $null -ne $cmd.Plan -and $cmd.PlannedText -eq $ui.CommandBox.Text)
-    $ui.DryRunButton.IsEnabled = $has -and $idle -and $cmd -and $cmd.IsWrite
-    $ui.RunCommandButton.IsEnabled = $has -and $idle -and -not $interactive -and $cmd -and ((-not $cmd.IsWrite) -or $planReady)
+    $ui.DryRunButton.IsEnabled = $false
+    $ui.RunCommandButton.IsEnabled = $has -and $idle -and -not $interactive -and $cmd -and -not $cmd.IsWrite
     $ui.RunCommandButton.Content = if ($cmd -and -not $cmd.IsWrite) { 'Run (read-only)' } else { '2. Make these changes' }
     $ui.DockHint.Text = if ($interactive) { 'This script asks for a password at the keyboard. The dry run works here; to run it, Copy it into a PowerShell 7 terminal in the repo folder.' }
     elseif ($cmd -and $cmd.IsWrite -and -not $planReady) { 'Run the dry run first: it lists every change, and only those changes can then be made.' }
     elseif ($planReady) { 'Read the list above. Make these changes runs exactly that list; anything else is refused.' }
-    else { 'Nothing runs until you choose.' }
+    else { 'SAFE MODE: read-only tenant operations. Changes and GDAP approvals are disabled.' }
     $ui.CopyCommandButton.IsEnabled = $has
     $ui.ClearCommandButton.IsEnabled = $has
     if ($cmd) { Show-Chip $ui.CommandChip $ui.CommandChipText $(if ($cmd.IsWrite) { 'Changes something' } else { 'Read-only' }) $(if ($cmd.IsWrite) { 'Warning' } else { 'Success' }) }
@@ -306,6 +323,7 @@ function Show-DockState {
 }
 function Show-Command {
     param([string[]]$Lines, [string]$Purpose, [bool]$IsWrite = $true, [bool]$Interactive = $false, [scriptblock]$OnDone)
+    if ($IsWrite) { Write-Activity 'SAFE MODE: change tasks are disabled.'; return }
     $script:Command = [pscustomobject]@{ Lines = @($Lines); Purpose = $Purpose; IsWrite = $IsWrite; Interactive = $Interactive; OnDone = $OnDone; Plan = $null; PlannedText = $null }
     $ui.CommandBox.Text = ($Lines -join [Environment]::NewLine)
     $ui.PlanBox.Text = ''
@@ -332,6 +350,7 @@ function Invoke-PreparedCommand {
     param([ValidateSet('DryRun', 'Run')][string]$Mode)
     $cmd = $script:Command
     if (-not $cmd) { return }
+    if ($cmd.IsWrite -or $Mode -eq 'DryRun') { Write-Activity 'SAFE MODE: change tasks are disabled.'; return }
     $text = $ui.CommandBox.Text
     $lines = @($cmd.Lines | Where-Object { $_ -notmatch '^\s*#' })
     $jobMode = if ($Mode -eq 'DryRun') { 'DryRun' } elseif ($cmd.IsWrite) { 'Run' } else { 'Read' }
@@ -382,7 +401,7 @@ function Invoke-PreparedCommand {
 }
 $ui.RunCommandButton.Add_Click({ Invoke-PreparedCommand -Mode Run })
 $ui.DryRunButton.Add_Click({ Invoke-PreparedCommand -Mode DryRun })
-$ui.CopyCommandButton.Add_Click({ [Windows.Clipboard]::SetText($ui.CommandBox.Text); Write-Activity 'Command copied. Paste it into a PowerShell 7 window in the repo folder; add -WhatIf first to see the changes.' })
+$ui.CopyCommandButton.Add_Click({ [Windows.Clipboard]::SetText($ui.CommandBox.Text); Write-Activity 'Read-only task command copied.' })
 $ui.ClearCommandButton.Add_Click({ $script:Command = $null; $ui.CommandBox.Text = ''; $ui.PlanBox.Text = ''; Show-DockState })
 #endregion
 
@@ -400,13 +419,11 @@ function Get-StatusChipStyle {
     switch ($Status) { 'active' { $theme['ChipSuccess'] } 'expiring' { $theme['ChipWarning'] } 'approvalPending' { $theme['ChipWarning'] } 'created' { $theme['ChipWarning'] } 'approved' { $theme['ChipActive'] } 'activating' { $theme['ChipActive'] } default { $theme['ChipError'] } }
 }
 function Show-GdapButtonState {
-    $a = $script:Gdap.Assessment
     $g.InspectButton.IsEnabled = $script:Gdap.SignedIn -and -not [string]::IsNullOrWhiteSpace($g.CustomerInput.Text)
     $g.PickCustomerButton.IsEnabled = $script:Gdap.SignedIn
-    $g.CreateRequestButton.IsEnabled = [bool]$a -and $a.State -in 'NoRelationship', 'Expired', 'MissingRoles' -and [bool]$template
-    $g.RepairAssignmentsButton.IsEnabled = [bool]$a -and $a.MissingAssignments.Count -gt 0
-    $hasUrl = -not [string]::IsNullOrWhiteSpace($g.ApprovalUrl.Text)
-    $g.CopyUrlButton.IsEnabled = $hasUrl; $g.OpenUrlButton.IsEnabled = $hasUrl
+    $g.CreateRequestButton.IsEnabled = $false
+    $g.RepairAssignmentsButton.IsEnabled = $false
+    $g.CopyUrlButton.IsEnabled = $false; $g.OpenUrlButton.IsEnabled = $false
     $g.WatchButton.IsEnabled = [bool]$script:Gdap.PendingId -and -not $script:Watch.IsEnabled
     $g.StopWatchButton.IsEnabled = $script:Watch.IsEnabled
 }
@@ -437,8 +454,9 @@ function Invoke-Inspect {
     $customerText = $g.CustomerInput.Text.Trim()
     if (-not $customerText) { return }
     $templatePath = if ($template) { $template.Path } else { $null }
-    Invoke-GuiJob -Name "Inspect $customerText" -Arguments @{ CustomerText = $customerText; TemplatePath = $templatePath } -Script {
-        param($CustomerText, $TemplatePath)
+    Invoke-GuiJob -Name "Inspect $customerText" -Arguments @{ CustomerText = $customerText; TemplatePath = $templatePath; HomeTenant = $partnerTenant } -Script {
+        param($CustomerText, $TemplatePath, $HomeTenant)
+        $null = Assert-M365Graph -TenantId $HomeTenant -Scopes 'DelegatedAdminRelationship.Read.All', 'Group.Read.All', 'RoleManagement.Read.Directory', 'CrossTenantInformation.ReadBasic.All'
         $tid = Resolve-M365TenantId -TenantId $CustomerText
         $tpl = if ($TemplatePath) { Get-GdapTemplate -Path $TemplatePath } else { $null }
         $rels = @(Get-GdapRelationship -CustomerTenantId $tid -IncludeAssignments)
@@ -461,7 +479,7 @@ function Invoke-Inspect {
 $g.SignInButton.Add_Click({
         Invoke-GuiJob -Name 'Partner sign-in' -Arguments @{ Tenant = $partnerTenant } -Script {
             param($Tenant)
-            $ctx = Assert-M365Graph -TenantId $Tenant -Scopes 'DelegatedAdminRelationship.ReadWrite.All', 'Group.Read.All', 'RoleManagement.Read.Directory', 'CrossTenantInformation.ReadBasic.All'
+            $ctx = Assert-M365Graph -TenantId $Tenant -Scopes 'DelegatedAdminRelationship.Read.All', 'Group.Read.All', 'RoleManagement.Read.Directory', 'CrossTenantInformation.ReadBasic.All'
             [pscustomobject]@{ Account = $ctx.Account; TenantId = $ctx.TenantId }
         } -OnComplete {
             param($out)
@@ -477,7 +495,11 @@ $g.CustomerInput.Add_TextChanged({ Show-GdapButtonState })
 $g.InspectButton.Add_Click({ Invoke-Inspect })
 $g.CustomerInput.Add_KeyDown({ if ($args[1].Key -eq 'Return' -and $g.InspectButton.IsEnabled) { Invoke-Inspect } })
 $g.PickCustomerButton.Add_Click({
-        Invoke-GuiJob -Name 'List GDAP customers' -Script { Get-GdapCustomer | Sort-Object DisplayName } -OnComplete {
+        Invoke-GuiJob -Name 'List GDAP customers' -Arguments @{ HomeTenant = $partnerTenant } -Script {
+            param($HomeTenant)
+            $null = Assert-M365Graph -TenantId $HomeTenant -Scopes 'DelegatedAdminRelationship.Read.All'
+            Get-GdapCustomer | Sort-Object DisplayName
+        } -OnComplete {
             param($out)
             if (@($out).Count -eq 0) { Write-Activity 'No customers with GDAP yet.'; return }
             $pick = [Windows.Window]::new(); $pick.Title = 'Pick a customer'; $pick.Width = 480; $pick.Height = 520; $pick.Owner = $window; $pick.WindowStartupLocation = 'CenterOwner'
@@ -514,6 +536,7 @@ $g.RepairAssignmentsButton.Add_Click({
 $script:ApprovalWindow = $null
 function Show-ApprovalWindow {
     param([string]$Url)
+    if (Test-M365ReadOnly) { throw 'Safe mode: customer access approval is disabled.' }
     if (-not $script:WebView2Available) {
         $opened = Open-GdapApprovalPage -Url $Url
         Write-Activity "WebView2 assemblies not in gui/lib/webview2; opened the approval page in $($opened.Browser)$(if ($opened.Private) { ' (private window)' }). Sign in with your admin account in the customer tenant."
@@ -563,12 +586,16 @@ $pollSeconds = if ($settings.PSObject.Properties.Name -contains 'partner' -and $
 $script:Watch.Interval = [TimeSpan]::FromSeconds($pollSeconds)
 $script:Watch.Add_Tick({
         if (-not $script:Gdap.PendingId -or $script:Worker.Current) { return }
-        Invoke-GuiJob -Name 'Check approval status' -Arguments @{ Id = $script:Gdap.PendingId } -Script { param($Id) Get-GdapRelationship -RelationshipId $Id | Select-Object -First 1 } -OnComplete {
+        Invoke-GuiJob -Name 'Check approval status' -Arguments @{ Id = $script:Gdap.PendingId; HomeTenant = $partnerTenant } -Script {
+            param($Id, $HomeTenant)
+            $null = Assert-M365Graph -TenantId $HomeTenant -Scopes 'DelegatedAdminRelationship.Read.All'
+            Get-GdapRelationship -RelationshipId $Id | Select-Object -First 1
+        } -OnComplete {
             param($out)
             $r = $out[0]
             $g.WatchStatus.Text = "Status $($r.Status) at $(Get-Date -Format HH:mm:ss)"
             switch ($r.Status) {
-                'active' { Show-Chip $g.ApprovalChip $g.ApprovalChipText 'Approved / Active' 'Success'; $script:Watch.Stop(); Write-Activity 'Approved. Relationship is active; prepare the group assignments next.'; if ($script:ApprovalWindow) { $script:ApprovalWindow.Close() }; Invoke-Inspect }
+                'active' { Show-Chip $g.ApprovalChip $g.ApprovalChipText 'Approved / Active' 'Success'; $script:Watch.Stop(); Write-Activity 'Relationship is active. Safe mode can inspect its assignments.'; if ($script:ApprovalWindow) { $script:ApprovalWindow.Close() }; Invoke-Inspect }
                 { $_ -in 'approved', 'activating' } { Show-Chip $g.ApprovalChip $g.ApprovalChipText 'Approved, activating' 'Active' }
                 { $_ -in 'expired', 'terminated', 'terminating', 'terminationRequested' } { Show-Chip $g.ApprovalChip $g.ApprovalChipText "Rejected / $($r.Status)" 'Error'; $script:Watch.Stop(); Write-Activity "Request ended as $($r.Status)." }
                 default { Show-Chip $g.ApprovalChip $g.ApprovalChipText 'Awaiting customer approval' 'Warning' }
@@ -627,7 +654,7 @@ function Show-TaskArea {
         }
     }
     $t.TaskList.ItemsSource = @($items)
-    $t.AreaSubtitle.Text = "$(@($items).Count) task(s). Green = read-only, amber = changes something."
+    $t.AreaSubtitle.Text = "$(@($items).Count) read-only task(s). Tenant changes are disabled in safe mode."
     $t.FormCard.Visibility = 'Collapsed'; $t.TaskTitle.Text = 'Pick a task'; $t.TaskSynopsis.Text = 'Every script in this area is listed on the left. Pick one, fill in the form, and Prepare writes the exact command into the review box below.'; $t.TaskDescription.Text = ''; $t.TaskRequires.Text = ''
     Show-Chip $t.StatusChip $t.StatusChipText '' 'Neutral'; $t.StatusChip.Visibility = 'Collapsed'
     $script:Task.Current = $null
@@ -726,7 +753,7 @@ $pump = [Windows.Threading.DispatcherTimer]::new(); $pump.Interval = [TimeSpan]:
 $window.Add_Closed({ $pump.Stop(); $script:Watch.Stop(); if ($script:Worker.Runspace) { $script:Worker.Runspace.Dispose() } })
 
 Write-Activity "Ready. $($catalog.Count) tasks in $(@(Get-M365TaskArea).Count) areas. GDAP template: $(if ($template) { "$($template.name) ($($template.RoleIds.Count) roles, $($template.Groups.Count) groups)" } else { "not loaded: $templateError" })"
-Write-Activity "Approval method: $(if ($script:WebView2Available) { 'in-app WebView2 window (isolated profile)' } else { 'private browser window (add WebView2 assemblies to gui/lib/webview2 for in-app)' })"
+Write-Activity 'SAFE MODE: tenant writes, request creation, group assignment changes, and customer approval windows are disabled.'
 Show-DockState
 #endregion
 

@@ -10,7 +10,7 @@ file.
 2. Open `catalog/azure/create/resource-group.psd1` (simplest), `catalog/azure/network/new-vnet.psd1`
    (multi-step, `Raw` step, variable passed between steps), and
    `catalog/m365/groups/new-security-group.psd1` (Graph, literal `$true`/`@()` parameters,
-   `{{Field:raw}}` inside a quoted filter). Copy the closest one.
+   `{{Field:filter:displayName}}` for a complete quoted OData filter). Copy the closest one.
 3. Open the official cmdlet reference on learn.microsoft.com for every cmdlet you will emit.
    Do not write a parameter from memory. Parameter names change between Az versions.
 
@@ -88,7 +88,8 @@ file.
 | A `[bool]` parameter (not a switch) | Add the name to the step's `BoolParameters` so one-liners emit `-Name $true`. Check the docs: `-Force` is a switch, `-AutoMapping` and `-DeliverToMailboxAndForward` are bools. |
 | Same value as another field | `Type = 'Reference'; From = 'OtherField'` |
 | A literal in a splat | Put it straight in Parameters: `SecurityEnabled = '$true'`, `GroupTypes = '@()'`, `Subnet = '$subnet'` |
-| A field inside a quoted string | `{{Field:raw}}`, e.g. `-Filter "displayName eq '{{DisplayName:raw}}'"` |
+| An OData equality filter | `-Filter {{DisplayName:filter:displayName}}` or `{{MailNickname:filter:mailNickname}}`; both OData and PowerShell quoting are applied |
+| A simple name embedded in legacy text | `{{Field:raw}}`; accepts only ASCII letters, digits, spaces, `. _ @ : / \\ -`. Quotes, expressions and control characters are refused. Prefer structured literals. |
 
 Note on `Parameters = @{ All = '$true' }` in a Source: `Resolve-MsSource` strips the quotes
 and passes the string `$true`, which Graph cmdlets accept for a switch. If a lookup needs a

@@ -5,6 +5,16 @@
 #          give it comment-based help and a Status line, and it is a task.
 Set-StrictMode -Version Latest
 $script:CommonParameters = [System.Management.Automation.PSCmdlet]::CommonParameters + [System.Management.Automation.PSCmdlet]::OptionalCommonParameters
+$script:ReadOnlyTasks = @(
+    'partner/Get-M365GdapCustomer.ps1', 'partner/Get-M365GdapRelationship.ps1',
+    'partner/Test-M365GdapCompliance.ps1', 'partner/Wait-M365GdapApproval.ps1',
+    'onboarding/Test-ClientOnboarding.ps1', 'entra/Get-M365Group.ps1', 'entra/Get-M365UserReview.ps1',
+    'mailauth/Get-M365DkimStatus.ps1', 'mailauth/Test-M365DmarcRecord.ps1',
+    'mailauth/Test-M365MailAuth.ps1', 'mailauth/Test-M365SpfRecord.ps1',
+    'security/Test-M365SecurityBaseline.ps1', 'reports/Get-M365AdminReport.ps1',
+    'reports/Get-M365ForwardingReport.ps1', 'reports/Get-M365LicenseReport.ps1',
+    'reports/Get-M365MailboxPermissionReport.ps1'
+)
 $script:AreaLabels = [ordered]@{
     partner    = 'GDAP & Partner'
     onboarding = 'Client Onboarding'
@@ -66,6 +76,8 @@ function Get-M365Task {
         Limit to scripts whose base name matches this wildcard.
     .PARAMETER ScriptsRoot
         Override the scripts folder (tests).
+    .PARAMETER ReadOnly
+        Return only explicitly reviewed read tasks. New scripts are not automatically admitted.
     .EXAMPLE
         Get-M365Task -Area exchange | Format-Table Name, IsWrite, Synopsis
     #>
@@ -78,7 +90,10 @@ function Get-M365Task {
         [string]$Name,
 
         [Parameter()]
-        [string]$ScriptsRoot
+        [string]$ScriptsRoot,
+
+        [Parameter()]
+        [switch]$ReadOnly
     )
     if (-not $ScriptsRoot) { $ScriptsRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..' '..')) }
     $repoRoot = [IO.Path]::GetFullPath((Join-Path $ScriptsRoot '..' '..'))
@@ -89,6 +104,7 @@ function Get-M365Task {
         $files = Get-ChildItem -Path $a.Path -Filter '*.ps1' | Where-Object { $_.Name -notlike '_*' -and $_.Name -notlike 'Start-*' } | Sort-Object Name
         if ($Name) { $files = $files | Where-Object { $_.BaseName -like $Name } }
         foreach ($file in $files) {
+            if ($ReadOnly -and "$($a.Name)/$($file.Name)" -notin $script:ReadOnlyTasks) { continue }
             $cmd = Get-Command -Name $file.FullName -ErrorAction Stop
             $help = Get-Help -Name $file.FullName -ErrorAction SilentlyContinue
             $raw = Get-Content -Path $file.FullName -Raw
@@ -141,6 +157,44 @@ function Get-M365Task {
                 Parameters   = @($parameters | Sort-Object Order)
             }
         }
+    }
+}
+
+function Assert-M365ReadOnlyCommand {
+    <# .SYNOPSIS
+        Accepts one allowlisted task with literal arguments; rejects executable expressions.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Line)
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($Line, [ref]$null, [ref]$parseErrors)
+    if ($parseErrors -or $ast.BeginBlock -or $ast.ProcessBlock -or $ast.ParamBlock -or
+        -not $ast.EndBlock -or $ast.EndBlock.Statements.Count -ne 1) {
+        throw 'Safe mode requires exactly one read-only task command.'
+    }
+    $pipeline = $ast.EndBlock.Statements[0]
+    if ($pipeline -isnot [System.Management.Automation.Language.PipelineAst] -or $pipeline.PipelineElements.Count -ne 1 -or $pipeline.Background) {
+        throw 'Safe mode refuses pipelines and additional statements.'
+    }
+    $command = $pipeline.PipelineElements[0]
+    if ($command -isnot [System.Management.Automation.Language.CommandAst] -or
+        $command.InvocationOperator -ne [System.Management.Automation.Language.TokenKind]::Ampersand -or
+        $command.CommandElements[0] -isnot [System.Management.Automation.Language.StringConstantExpressionAst]) {
+        throw 'Safe mode requires a literal task path.'
+    }
+    $allowedAst = @('ScriptBlockAst', 'NamedBlockAst', 'PipelineAst', 'CommandAst', 'CommandParameterAst',
+        'StringConstantExpressionAst', 'ConstantExpressionAst', 'ArrayLiteralAst', 'VariableExpressionAst')
+    $invalid = @($ast.FindAll({ param($node) $node.GetType().Name -notin $allowedAst -or
+        ($node -is [System.Management.Automation.Language.VariableExpressionAst] -and
+            $node.VariablePath.UserPath -notin 'true', 'false', 'null') }, $true))
+    if ($invalid.Count) { throw 'Safe mode accepts literal arguments only; expressions, redirection, and nested commands are refused.' }
+    $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..' '..' '..' '..'))
+    $path = $command.CommandElements[0].Value
+    $full = [IO.Path]::GetFullPath($(if ([IO.Path]::IsPathRooted($path)) { $path } else { Join-Path $root $path }))
+    $task = Get-M365Task -ReadOnly | Where-Object { $_.Path -ceq $full } | Select-Object -First 1
+    if (-not $task) { throw 'Safe mode refused a task outside the reviewed read-only allowlist.' }
+    foreach ($parameter in $command.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] }) {
+        if ($parameter.ParameterName -notin $task.Parameters.Name) { throw "Safe mode refused task parameter '$($parameter.ParameterName)'." }
     }
 }
 
@@ -282,4 +336,4 @@ function ConvertTo-M365TaskValue {
     return $Text.Trim()
 }
 
-Export-ModuleMember -Function Get-M365Task, Get-M365TaskArea, Format-M365Argument, Format-M365CommandLine, ConvertTo-M365TaskValue
+Export-ModuleMember -Function Get-M365Task, Get-M365TaskArea, Format-M365Argument, Format-M365CommandLine, ConvertTo-M365TaskValue, Assert-M365ReadOnlyCommand

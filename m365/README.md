@@ -4,6 +4,13 @@ Part of [Cloudwright](../README.md). After installing the root launcher, run
 `cloudwright m365` or `cloudwright m365 -Console`.
 Direct-script examples below run from this `m365/` directory.
 
+**This release is in mandatory read-only safe mode.** Inspection/report tasks remain
+available; tenant writes, Hudu writes, and GDAP approvals are disabled, including direct
+calls to the mutation helper. There is no write-enable switch. See
+[the safety contract, credential limits, and upgrade instructions](../docs/SAFETY.md).
+The administration workflows described below are retained legacy code; their write
+operations are unavailable until a separately reviewed release enables them.
+
 Scripts, modules and a console for administering Microsoft 365 tenants as an MSP: onboarding a
 new client's tenant, securing it, and the everyday "add a contact / list / alias / admin"
 tasks. Same shape as the `azure` repo: reusable logic in modules, thin single-purpose scripts

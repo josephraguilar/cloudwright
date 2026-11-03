@@ -20,17 +20,17 @@
             Title = 'Activate the role from its template if this is its first use'
             What  = 'Creates the directoryRole object for the template when no active role with that name exists yet.'
             Why   = 'Roles nobody has used are not instantiated; adding a member to a missing role fails.'
-            Raw   = @('if (-not (Get-MgDirectoryRole -Filter "displayName eq ''{{RoleName:raw}}''")) { New-MgDirectoryRole -RoleTemplateId (Get-MgDirectoryRoleTemplate | Where-Object DisplayName -eq {{RoleName}}).Id }')
+            Raw   = @('if (-not (Get-MgDirectoryRole -Filter {{RoleName:filter:displayName}})) { New-MgDirectoryRole -RoleTemplateId (Get-MgDirectoryRoleTemplate | Where-Object DisplayName -eq {{RoleName}}).Id }')
         }
         @{
             Title = 'Add the user to the role'
             What  = 'POST /directoryRoles/{id}/members/$ref.'
             Why   = 'Takes effect at the user''s next token refresh.'
-            Raw   = @('New-MgDirectoryRoleMemberByRef -DirectoryRoleId (Get-MgDirectoryRole -Filter "displayName eq ''{{RoleName:raw}}''").Id -BodyParameter @{ ''@odata.id'' = "https://graph.microsoft.com/v1.0/directoryObjects/$((Get-MgUser -UserId {{UserId}}).Id)" }')
+            Raw   = @('New-MgDirectoryRoleMemberByRef -DirectoryRoleId (Get-MgDirectoryRole -Filter {{RoleName:filter:displayName}}).Id -BodyParameter @{ ''@odata.id'' = "https://graph.microsoft.com/v1.0/directoryObjects/$((Get-MgUser -UserId {{UserId}}).Id)" }')
         }
     )
-    Verify   = @('Get-MgDirectoryRoleMember -DirectoryRoleId (Get-MgDirectoryRole -Filter "displayName eq ''{{RoleName:raw}}''").Id | Select-Object Id, @{ n = ''Member''; e = { $_.AdditionalProperties.userPrincipalName } }')
-    Rollback = @('Remove-MgDirectoryRoleMemberByRef -DirectoryRoleId (Get-MgDirectoryRole -Filter "displayName eq ''{{RoleName:raw}}''").Id -DirectoryObjectId (Get-MgUser -UserId {{UserId}}).Id')
+    Verify   = @('Get-MgDirectoryRoleMember -DirectoryRoleId (Get-MgDirectoryRole -Filter {{RoleName:filter:displayName}}).Id | Select-Object Id, @{ n = ''Member''; e = { $_.AdditionalProperties.userPrincipalName } }')
+    Rollback = @('Remove-MgDirectoryRoleMemberByRef -DirectoryRoleId (Get-MgDirectoryRole -Filter {{RoleName:filter:displayName}}).Id -DirectoryObjectId (Get-MgUser -UserId {{UserId}}).Id')
     Docs     = @('https://learn.microsoft.com/powershell/module/microsoft.graph.identity.directorymanagement/new-mgdirectoryrolememberbyref', 'https://learn.microsoft.com/entra/identity/role-based-access-control/permissions-reference')
     Status   = 'Untested'
 }

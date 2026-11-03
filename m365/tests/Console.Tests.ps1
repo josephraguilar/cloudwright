@@ -3,6 +3,9 @@
 #          listed changes, and never let a read-only task change anything.
 #   WHY    This is the path every console task takes; the GUI dock follows the same rules.
 
+# Legacy domain behavior runs only against the fake APIs in this test file.
+# Mock the release policy here so these tests still exercise plan matching and
+# mutation semantics. Safety.Tests.ps1 and EndToEnd.Tests.ps1 use the real policy.
 BeforeAll {
     $script:Repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
     Import-Module (Join-Path $script:Repo 'scripts' 'powershell' 'modules' 'M365Helpers' 'M365Helpers.psd1') -Force
@@ -40,7 +43,10 @@ AfterAll {
     Remove-Item env:M365_TOOLKIT_LOG_PATH -ErrorAction SilentlyContinue
 }
 Describe 'Console: plan, then run' {
+
     BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
+        Mock Test-M365ReadOnly { $false }
         $global:ConsoleCalls.Clear()
         Set-M365ChangeTarget -Service Exchange -Label 'contoso.onmicrosoft.com'
         Mock Write-Host { }

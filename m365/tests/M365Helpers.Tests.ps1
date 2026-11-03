@@ -1,3 +1,6 @@
+# Legacy domain behavior runs only against the fake APIs in this test file.
+# Mock the release policy here so these tests still exercise plan matching and
+# mutation semantics. Safety.Tests.ps1 and EndToEnd.Tests.ps1 use the real policy.
 BeforeAll {
     $script:ModulesPath = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules'
     $script:ManifestPath = Join-Path $script:ModulesPath 'M365Helpers' 'M365Helpers.psd1'
@@ -5,6 +8,10 @@ BeforeAll {
 }
 
 Describe 'M365Helpers module' {
+    BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
+    }
+
     It 'has a valid manifest' {
         { Test-ModuleManifest -Path $script:ManifestPath -ErrorAction Stop } | Should -Not -Throw
     }
@@ -200,6 +207,7 @@ Describe 'M365Helpers module' {
 }
 
 Describe 'Plan and run (Invoke-M365Change)' {
+
     BeforeAll {
         $env:M365_TOOLKIT_LOG_PATH = Join-Path $TestDrive 'logs'
         $global:StubCalls = [System.Collections.Generic.List[string]]::new()
@@ -222,6 +230,7 @@ Describe 'Plan and run (Invoke-M365Change)' {
         Remove-Item env:M365_TOOLKIT_LOG_PATH -ErrorAction SilentlyContinue
     }
     BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
         $global:StubCalls.Clear()
         Set-M365ChangeTarget -Service Exchange -Label 'contoso.onmicrosoft.com'
     }
@@ -303,6 +312,7 @@ Describe 'Plan and run (Invoke-M365Change)' {
 }
 
 Describe 'Tenant checks' {
+
     BeforeAll {
         $script:Guids = @{ 'home.onmicrosoft.com' = '11111111-1111-1111-1111-111111111111'; 'a.onmicrosoft.com' = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'; 'b.onmicrosoft.com' = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'; 'a.example' = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' }
         # A fake ExchangeOnlineManagement that behaves like the real one: several connections can be
@@ -321,6 +331,7 @@ Describe 'Tenant checks' {
         Remove-Item Function:\Connect-ExchangeOnline, Function:\Disconnect-ExchangeOnline, Function:\Get-ConnectionInformation, Function:\Get-AcceptedDomain -ErrorAction SilentlyContinue
     }
     BeforeEach {
+        Mock Test-M365ReadOnly -ModuleName M365Helpers { $false }
         $global:FakeExo.Connections.Clear(); $global:FakeExo.Active = $null; $global:FakeExo.Connects = 0; $global:FakeExo.ConnectTo = $null
         Mock -ModuleName M365Helpers Get-Module { [pscustomobject]@{ Name = 'ExchangeOnlineManagement' } } -ParameterFilter { $ListAvailable }
         Mock -ModuleName M365Helpers Get-M365Settings { [pscustomobject]@{ msp = [pscustomobject]@{ homeTenantId = 'home.onmicrosoft.com' } } }

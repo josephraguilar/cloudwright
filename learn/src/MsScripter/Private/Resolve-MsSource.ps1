@@ -46,6 +46,9 @@ function Resolve-MsSource {
         default          { $true }
     }
     if (-not $connected) { return $null }
+    if ($Source.Auth -eq 'Graph' -and -not (Test-MsReadOnlyGraphContext (Get-MgContext))) {
+        throw 'Learn refused a lookup using an unverified Graph session. Reconnect with read-only permissions.'
+    }
 
     $params = @{}
     if ($Source.ContainsKey('Parameters')) {
@@ -56,7 +59,16 @@ function Resolve-MsSource {
             elseif ($v -ne '') { $params[$k] = $v }
         }
     }
-    $key = $Source.Cmdlet + '|' + (($params.GetEnumerator() | Sort-Object Key | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ';')
+    # Cache entries must not survive a tenant, subscription, or principal switch.
+    $contextKey = switch ($Source.Auth) {
+        'Graph' { $ctx = Get-MgContext; "$($ctx.TenantId)|$($ctx.Account)" }
+        'Azure' { $ctx = Get-AzContext; "$($ctx.Tenant.Id)|$($ctx.Subscription.Id)|$($ctx.Account.Id)" }
+        'ExchangeOnline' { (Get-ConnectionInformation | Select-Object ConnectionId, TenantId, UserPrincipalName | ConvertTo-Json -Compress) }
+        default { 'offline' }
+    }
+    $orderedParameters = [ordered]@{}
+    foreach ($parameter in $params.Keys | Sort-Object) { $orderedParameters[$parameter] = $params[$parameter] }
+    $key = [ordered]@{ Context = $contextKey; Auth = $Source.Auth; Command = $Source.Cmdlet; Display = $Source.Display; Value = $Source.Value; Parameters = $orderedParameters } | ConvertTo-Json -Depth 5 -Compress
     if ($script:SourceCache.ContainsKey($key)) { return $script:SourceCache[$key] }
 
     $command = Get-Command -Name $Source.Cmdlet -ErrorAction SilentlyContinue

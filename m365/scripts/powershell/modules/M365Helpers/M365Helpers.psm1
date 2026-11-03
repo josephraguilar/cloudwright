@@ -3,9 +3,11 @@
 #   WHY    Every script imports this. A typo here breaks everything, so catch it
 #          at import time rather than three scripts later.
 Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 $script:SettingsCache = $null
 $script:SettingsCachePath = $null
 $script:TenantIdCache = @{}
+. (Join-Path $PSScriptRoot 'Safety.ps1')
 #   GOTCHA The verified sign-in targets, the change recorder and the approved plan live in
 #          global variables, not module scope: every task script re-imports this module
 #          with -Force, which would reset module state between the dry run and the run.
@@ -218,6 +220,9 @@ function Resolve-M365TenantId {
     )
     if ($TenantId -match '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') { return $TenantId.ToLowerInvariant() }
     $key = $TenantId.Trim().ToLowerInvariant()
+    if ($key -notmatch '^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$') {
+        throw 'Tenant must be a GUID or a verified DNS domain; URLs, paths, and query strings are not accepted.'
+    }
     if ($script:TenantIdCache.ContainsKey($key)) { return $script:TenantIdCache[$key] }
     $uri = "https://login.microsoftonline.com/$key/v2.0/.well-known/openid-configuration"
     try {
@@ -225,7 +230,7 @@ function Resolve-M365TenantId {
     } catch {
         throw "Could not resolve tenant '$TenantId': $($_.Exception.Message). Check the spelling; the domain must be verified in some Entra tenant."
     }
-    if ($config.issuer -match '([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})') {
+    if ($config.issuer -match '^https://login\.microsoftonline\.com/([0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})/v2\.0/?$') {
         $script:TenantIdCache[$key] = $Matches[1].ToLowerInvariant()
         return $script:TenantIdCache[$key]
     }
@@ -310,6 +315,8 @@ function Assert-M365Graph {
     #   WHY    'Connect-MgGraph is not recognized' is a confusing first error.
     #   GOTCHA Checked at call time, not import time, so tests can load this
     #          module on a machine without the Graph SDK.
+    $readOnly = Test-M365ReadOnly
+    if ($readOnly) { Assert-M365ReadOnlyScope -Scopes $Scopes }
     if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication)) {
         throw 'Microsoft.Graph is not installed. Run: Install-Module Microsoft.Graph -Scope CurrentUser'
     }
@@ -325,6 +332,10 @@ function Assert-M365Graph {
     #          and create the break-glass account in the wrong tenant.
     $tenantGuid = Resolve-M365TenantId -TenantId $TenantId
     $context = Get-MgContext -ErrorAction SilentlyContinue
+    if ($readOnly -and $context -and -not (Test-M365ReadOnlyGraphContext -Context $context)) {
+        $null = Disconnect-MgGraph -ErrorAction Stop
+        $context = $null
+    }
     $needConnect = $true
     if ($context) {
         $sameTenant = ($context.TenantId -eq $tenantGuid)
@@ -336,10 +347,17 @@ function Assert-M365Graph {
     }
     if ($needConnect) {
         Write-Verbose "Connecting to Microsoft Graph in tenant $TenantId."
-        $null = Connect-MgGraph -TenantId $tenantGuid -Scopes $Scopes -NoWelcome -ErrorAction Stop
+        if ($context) { $null = Disconnect-MgGraph -ErrorAction Stop }
+        $null = Connect-MgGraph -TenantId $tenantGuid -Scopes $Scopes -ContextScope Process -NoWelcome -ErrorAction Stop
         $context = Get-MgContext
     }
+    if ($readOnly -and -not (Test-M365ReadOnlyGraphContext -Context $context -RequiredScopes $Scopes)) {
+        $null = Disconnect-MgGraph -ErrorAction Stop
+        throw 'Safe mode refused the Graph session: a delegated, process-scoped session with only approved read permissions is required.'
+    }
+    if (-not $context) { throw 'Graph sign-in did not return a context.' }
     if ("$($context.TenantId)".ToLowerInvariant() -ne $tenantGuid) {
+        $null = Disconnect-MgGraph -ErrorAction Stop
         throw "Signed in to Graph, but the session is in tenant $($context.TenantId), not $TenantId ($tenantGuid). Stopped before any change."
     }
     #endregion
@@ -446,13 +464,18 @@ function Assert-M365Exchange {
     #endregion
 
     #region 2. Reuse only a session verified to be in that tenant ------------------
+    $readOnly = Test-M365ReadOnly
     $current = Get-M365ExchangeTenant
-    if ($current -and $current.TenantId -eq $wantGuid) {
+    $known = (Get-M365SessionTarget)['Exchange']
+    $limited = $known -and $known.PSObject.Properties['ReadOnly'] -and $known.ReadOnly -and
+        $current -and $known.ModuleName -eq $current.ModuleName -and $known.TenantId -eq $wantGuid
+    if ($current -and $current.TenantId -eq $wantGuid -and (-not $readOnly -or $limited)) {
         Write-Verbose "Reusing the Exchange Online session in $($current.InitialDomain) (verified live)."
     } else {
         if ($current) { Write-Verbose "Open Exchange session is in $($current.InitialDomain), not $Organization. Closing it." }
         if (@(Get-ConnectionInformation -ErrorAction SilentlyContinue).Count -gt 0) { Disconnect-ExchangeOnline -Confirm:$false -ErrorAction Stop }
         $connectParams = @{ ShowBanner = $false; ErrorAction = 'Stop' }
+        if ($readOnly) { $connectParams.CommandName = @(Get-M365ReadOnlyExchangeCommand) }
         if (-not $isHome) { $connectParams.DelegatedOrganization = $Organization }
         if ($UserPrincipalName) { $connectParams.UserPrincipalName = $UserPrincipalName }
         Write-Verbose "Connecting to Exchange Online $(if ($isHome) { '(our tenant)' } else { "for $Organization" })."
@@ -460,6 +483,7 @@ function Assert-M365Exchange {
         $current = Get-M365ExchangeTenant
         if (-not $current) { throw "Connected to Exchange Online but could not read the session's tenant. Stopped before any change." }
         if ($current.TenantId -ne $wantGuid) {
+            Disconnect-ExchangeOnline -Confirm:$false -ErrorAction Stop
             throw "The Exchange session is in $($current.InitialDomain) ($($current.TenantId)), not $Organization ($wantGuid). Stopped before any change."
         }
     }
@@ -468,7 +492,7 @@ function Assert-M365Exchange {
     #region 3. Record the verified target ---------------------------------------
     #   WHAT   Invoke-M365Change labels every Exchange change with this domain and checks
     #          the cmdlet it runs still comes from this same connection.
-    (Get-M365SessionTarget)['Exchange'] = [pscustomobject]@{ Label = $current.InitialDomain; TenantId = $current.TenantId; ModuleName = $current.ModuleName; Verified = 'live' }
+    (Get-M365SessionTarget)['Exchange'] = [pscustomobject]@{ Label = $current.InitialDomain; TenantId = $current.TenantId; ModuleName = $current.ModuleName; Verified = 'live'; ReadOnly = $readOnly }
     #endregion
 
     return $current
@@ -793,6 +817,7 @@ function Invoke-M365HuduRequest {
         [Parameter()]
         [System.Collections.IDictionary]$Body
     )
+    if ($Method -ne 'Get') { Assert-M365WriteAllowed }
     $settings = Get-M365Settings
     $envVar = if ($settings.hudu.apiKeyEnvVar) { $settings.hudu.apiKeyEnvVar } else { 'HUDU_API_KEY' }
     $apiKey = [Environment]::GetEnvironmentVariable($envVar)
@@ -1236,6 +1261,10 @@ function Invoke-M365Change {
         [switch]$Retry
     )
 
+    # The release is read-only, including direct module calls and approved plans.
+    # No CLI flag, environment variable, or confirmation can unlock tenant writes.
+    Assert-M365WriteAllowed
+
     #region 1. Render ------------------------------------------------------------
     $target = (Get-M365SessionTarget)[$Service]
     $tenant = switch ($Service) {
@@ -1539,7 +1568,7 @@ function Write-M365Step {
     if ($Detail) { Write-Host ("{0,-16}{1}" -f '', $Detail) -ForegroundColor DarkGray }
 }
 
-Export-ModuleMember -Function Get-M365Settings, Get-M365ClientConfig, Resolve-M365TenantId, Assert-M365SameTenant, Assert-M365Graph, Assert-M365Exchange,
+Export-ModuleMember -Function Test-M365ReadOnly, Get-M365Settings, Get-M365ClientConfig, Resolve-M365TenantId, Assert-M365SameTenant, Assert-M365Graph, Assert-M365Exchange,
     Get-M365ExchangeTenant, Disconnect-M365Tenant, Resolve-DnsRecord, New-StrongPassword, Add-HuduPassword, Write-M365Step,
     Invoke-M365WithRetry, New-M365CorrelationId, Write-M365Log, Get-M365ConfigPlaceholder, Get-M365ConfigValue, Set-M365ConfigValue, Export-M365Csv,
     Test-M365PasswordComplexity, Read-M365Password,

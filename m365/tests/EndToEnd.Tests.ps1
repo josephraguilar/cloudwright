@@ -72,7 +72,7 @@ BeforeAll {
     function global:Add-E2EWrite { param([string]$Name, [hashtable]$Args2) if (-not ($Args2.ContainsKey('WhatIf') -and $Args2.WhatIf -and "$($Args2.WhatIf)" -ne 'False')) { $global:E2E.Writes.Add($Name) } }
 
     # Session cmdlets
-    function global:Connect-MgGraph { $a = ConvertFrom-E2EArgs $args; $global:E2E.Graph = [pscustomobject]@{ TenantId = "$($a.TenantId)"; Scopes = @($a.Scopes); Account = 'tech@msp.example' } }
+    function global:Connect-MgGraph { $a = ConvertFrom-E2EArgs $args; $global:E2E.Graph = [pscustomobject]@{ TenantId = "$($a.TenantId)"; Scopes = @($a.Scopes); Account = 'reader@msp.example'; ContextScope = $a.ContextScope; AuthType = 'Delegated' } }
     function global:Get-MgContext { $global:E2E.Graph }
     function global:Disconnect-MgGraph { $global:E2E.Graph = $null }
     function global:Connect-ExchangeOnline { $a = ConvertFrom-E2EArgs $args; $global:E2E.Exo = if ($a.DelegatedOrganization) { "$($a.DelegatedOrganization)" } else { 'examplemsp.onmicrosoft.com' } }
@@ -205,6 +205,15 @@ Describe 'Nothing changes outside the reviewed plan' {
         $records = Stop-M365ChangeRecording
         $r.Writes | Should -BeNullOrEmpty -Because 'every change must go through Invoke-M365Change, which refuses it here'
         @($records | Where-Object Status -eq 'Done') | Should -BeNullOrEmpty
+        Test-BindingFailure $r.Failure | Should -BeFalse -Because "$($r.Failure)"
+    }
+}
+
+Describe 'Default safe mode without any approval recorder' {
+    It '<Name> cannot reach a tenant write or browser even through a direct script call' -ForEach $TaskCases {
+        $null = Stop-M365ChangeRecording
+        $r = Invoke-E2EScript -RelativePath $RelativePath
+        $r.Writes | Should -BeNullOrEmpty -Because 'the release policy must protect direct scripts without relying on a menu or approved plan'
         Test-BindingFailure $r.Failure | Should -BeFalse -Because "$($r.Failure)"
     }
 }

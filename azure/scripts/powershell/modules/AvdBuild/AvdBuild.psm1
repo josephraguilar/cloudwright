@@ -651,85 +651,50 @@ function Grant-AvdStorageKerberosConsent {
 #endregion
 
 #region Storage account Entra app cleanup -------------------------------------
-#   WHAT   Delete the Entra application "[Storage Account] <name>.file.core.windows.net"
-#          that enabling Entra Kerberos created.
-#   WHY    Deleting the storage account (or its resource group) leaves this app in
-#          the tenant. Recreating an account with the same name and enabling Kerberos
-#          again can then collide with it, and it is clutter either way.
+# Compatibility entry point only. Names are not ownership evidence, so directory
+# cleanup stays disabled until a reviewed design can bind exact object ids to VMs.
 function Remove-AvdStorageKerberosApp {
     <#
     .SYNOPSIS
-        Deletes the Entra application created for a storage account's Entra Kerberos.
-    .OUTPUTS
-        Number of applications deleted (0 or 1 normally).
+        Refuses automatic directory cleanup based only on an application display name.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '', Justification = 'Compatibility entry point always throws, including WhatIf and Confirm calls; it never performs an operation.')]
     [CmdletBinding(SupportsShouldProcess)]
     param([Parameter(Mandatory)] [string]$StorageAccountName)
-    $name = "[Storage Account] $StorageAccountName.file.core.windows.net"
-    $filter = [uri]::EscapeDataString("displayName eq '$name'")
-    $resp = Invoke-AzRestMethod -Method GET -Uri "https://graph.microsoft.com/v1.0/applications?`$filter=$filter&`$select=id,appId,displayName"
-    if ($resp.StatusCode -ne 200) { throw "Graph application lookup returned HTTP $($resp.StatusCode): $($resp.Content)" }
-    $apps = @(($resp.Content | ConvertFrom-Json).value)
-    $deleted = 0
-    foreach ($a in $apps) {
-        if ($PSCmdlet.ShouldProcess("Entra application $($a.displayName) ($($a.id))", 'Delete')) {
-            $resp = Invoke-AzRestMethod -Method DELETE -Uri "https://graph.microsoft.com/v1.0/applications/$($a.id)"
-            if ($resp.StatusCode -notin 200, 204) { throw "Deleting application $($a.id) returned HTTP $($resp.StatusCode): $($resp.Content)" }
-            Write-Verbose "Deleted Entra application $($a.displayName)."
-            $deleted++
-        }
-    }
-    return $deleted
+    throw "Automatic Entra application cleanup for '$StorageAccountName' is disabled: a display name does not prove ownership. Review the exact application object and its ownership before removing it outside Cloudwright."
 }
 #endregion
 
 #region Entra device records --------------------------------------------------
-#   WHAT   Find and delete Entra ID device objects by display name, through
-#          Microsoft Graph via Invoke-AzRestMethod (no extra module).
-#   WHY    Deleting a VM does not delete its Entra device record. The next VM with
-#          the same name then fails to join with error_hostname_duplicate, and the
-#          AADLoginForWindows extension STILL reports success to Azure. Seen on
-#          the first rebuild of avd-lab-01. So: remove the record whenever a VM is
-#          deleted, and check for a stale one before every Entra join.
-#   GOTCHA Needs a directory role that can delete devices (Cloud Device
-#          Administrator or Global Administrator). A 403 is reported, not fatal.
+# Inspection is supported. Automatic deletion is disabled because unrelated
+# devices can share a display name; even one match does not establish ownership.
 function Find-AvdEntraDevice {
     <#
     .SYNOPSIS
         Entra ID device objects whose display name matches exactly.
     #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)] [string]$Name)
-    $uri = "https://graph.microsoft.com/v1.0/devices?`$filter=displayName%20eq%20'$Name'"
+    param([Parameter(Mandatory)] [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9-]{0,14}$')] [string]$Name)
+    $filter = [uri]::EscapeDataString("displayName eq '$($Name.Replace("'", "''"))'")
+    $uri = "https://graph.microsoft.com/v1.0/devices?`$filter=$filter"
     $resp = Invoke-AzRestMethod -Method GET -Uri $uri -ErrorAction Stop
     if ($resp.StatusCode -ne 200) {
         throw "Graph device lookup for '$Name' returned HTTP $($resp.StatusCode): $($resp.Content)"
     }
-    return @(($resp.Content | ConvertFrom-Json).value)
+    $devices = @(($resp.Content | ConvertFrom-Json).value)
+    if (@($devices | Where-Object displayName -ine $Name).Count) { throw 'Graph returned a device with a different display name; refusing the result.' }
+    return $devices
 }
 
 function Remove-AvdEntraDevice {
     <#
     .SYNOPSIS
-        Deletes every Entra ID device object with this display name.
-    .OUTPUTS
-        The number of records deleted.
+        Refuses automatic directory cleanup based only on a device display name.
     #>
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '', Justification = 'Compatibility entry point always throws, including WhatIf and Confirm calls; it never performs an operation.')]
     [CmdletBinding(SupportsShouldProcess)]
     param([Parameter(Mandatory)] [string]$Name)
-    $devices = Find-AvdEntraDevice -Name $Name
-    $deleted = 0
-    foreach ($d in $devices) {
-        if ($PSCmdlet.ShouldProcess("Entra device $($d.displayName) ($($d.id), registered $($d.registrationDateTime))", 'Delete')) {
-            $resp = Invoke-AzRestMethod -Method DELETE -Uri "https://graph.microsoft.com/v1.0/devices/$($d.id)" -ErrorAction Stop
-            if ($resp.StatusCode -notin 200, 204) {
-                throw "Deleting Entra device $($d.id) returned HTTP $($resp.StatusCode): $($resp.Content)"
-            }
-            Write-Verbose "Deleted Entra device record $($d.displayName) ($($d.id))."
-            $deleted++
-        }
-    }
-    return $deleted
+    throw "Automatic Entra device cleanup for '$Name' is disabled: a display name does not prove ownership. Review the exact device object and its ownership before removing it outside Cloudwright."
 }
 
 function Test-AvdEntraJoin {

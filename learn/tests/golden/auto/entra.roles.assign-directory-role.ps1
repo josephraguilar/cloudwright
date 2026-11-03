@@ -1,2 +1,2 @@
-if (-not (Get-MgDirectoryRole -Filter "displayName eq 'Helpdesk Administrator'")) { New-MgDirectoryRole -RoleTemplateId (Get-MgDirectoryRoleTemplate | Where-Object DisplayName -eq 'Helpdesk Administrator').Id }
-New-MgDirectoryRoleMemberByRef -DirectoryRoleId (Get-MgDirectoryRole -Filter "displayName eq 'Helpdesk Administrator'").Id -BodyParameter @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$((Get-MgUser -UserId 'sample-userid').Id)" }
+if (-not (Get-MgDirectoryRole -Filter 'displayName eq ''Helpdesk Administrator''')) { New-MgDirectoryRole -RoleTemplateId (Get-MgDirectoryRoleTemplate | Where-Object DisplayName -eq 'Helpdesk Administrator').Id }
+New-MgDirectoryRoleMemberByRef -DirectoryRoleId (Get-MgDirectoryRole -Filter 'displayName eq ''Helpdesk Administrator''').Id -BodyParameter @{ '@odata.id' = "https://graph.microsoft.com/v1.0/directoryObjects/$((Get-MgUser -UserId 'sample-userid').Id)" }

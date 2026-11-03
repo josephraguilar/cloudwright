@@ -26,8 +26,8 @@
             Fixed          = @('GroupTypes', 'MailEnabled', 'SecurityEnabled')
         }
     )
-    Verify   = @('Get-MgGroup -Filter "mailNickname eq ''{{MailNickname:raw}}''" | Format-List Id, DisplayName, Mail, Visibility, GroupTypes')
-    Rollback = @('Remove-MgGroup -GroupId (Get-MgGroup -Filter "mailNickname eq ''{{MailNickname:raw}}''").Id    # Soft-deleted 30 days.')
+    Verify   = @('Get-MgGroup -Filter {{MailNickname:filter:mailNickname}} | Format-List Id, DisplayName, Mail, Visibility, GroupTypes')
+    Rollback = @('Remove-MgGroup -GroupId (Get-MgGroup -Filter {{MailNickname:filter:mailNickname}}).Id    # Soft-deleted 30 days.')
     Docs     = @('https://learn.microsoft.com/powershell/module/microsoft.graph.groups/new-mggroup')
     Status   = 'Untested'
 }

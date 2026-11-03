@@ -59,7 +59,8 @@ param(
     $requiredFiles = @(
         'Cloudwright.psd1', 'Cloudwright.psm1', 'Install-Cloudwright.ps1',
         'learn/Start-MsScripter.ps1', 'azure/scripts/powershell/Start-AvdConsole.ps1',
-        'm365/Start-Toolkit.ps1'
+        'm365/Start-Toolkit.ps1',
+        'm365/scripts/powershell/modules/M365Helpers/Safety.ps1'
     )
 
     # Only reuse our own complete snapshot. Never overwrite a checkout or arbitrary folder.
@@ -72,6 +73,9 @@ param(
         if ($record.Tool -ne 'Cloudwright' -or $record.SchemaVersion -ne 1 -or
             $record.Commit -notmatch '^[0-9a-f]{40}$') {
             throw "Unrecognized Cloudwright download record at '$markerPath'. Choose a new -InstallPath."
+        }
+        if (-not $record.PSObject.Properties['SafetyBaseline'] -or $record.SafetyBaseline -ne 1) {
+            throw 'This cached Cloudwright snapshot predates mandatory Microsoft 365 safe mode. It will not be launched. Keep your local settings and install the reviewed release into a NEW -InstallPath.'
         }
         foreach ($file in $requiredFiles) {
             if (-not (Test-Path -LiteralPath (Join-Path $destination $file) -PathType Leaf)) {
@@ -117,7 +121,7 @@ param(
                 }
             }
             [ordered]@{
-                Tool = 'Cloudwright'; SchemaVersion = 1
+                Tool = 'Cloudwright'; SchemaVersion = 1; SafetyBaseline = 1
                 Commit = $head.sha
             } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $source $markerName) -Encoding utf8
             # Directory.Move fails if another invocation created the destination in the meantime.

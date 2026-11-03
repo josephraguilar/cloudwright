@@ -60,7 +60,7 @@
             Output         = 'group'
         }
     )
-    Verify   = @('Get-MgGroup -Filter "displayName eq ''{{DisplayName:raw}}''" | Format-List Id, DisplayName, MailNickname, SecurityEnabled, CreatedDateTime')
+    Verify   = @('Get-MgGroup -Filter {{DisplayName:filter:displayName}} | Format-List Id, DisplayName, MailNickname, SecurityEnabled, CreatedDateTime')
     Rollback = @('Remove-MgGroup -GroupId $group.Id    # Soft-deleted for 30 days; restore from Entra admin center > Groups > Deleted groups.')
     Docs     = @(
         'https://learn.microsoft.com/powershell/module/microsoft.graph.groups/new-mggroup'
