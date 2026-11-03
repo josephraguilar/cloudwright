@@ -1,0 +1,1 @@
+New-AzRoleAssignment -ObjectId 'sample-groupobjectid' -RoleDefinitionName 'Desktop Virtualization User' -Scope (Get-AzWvdApplicationGroup -Name 'sample-appgroupname' -ResourceGroupName 'sample-resourcegroupname').Id

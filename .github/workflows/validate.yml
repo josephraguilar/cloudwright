@@ -1,0 +1,87 @@
+name: Validate Cloudwright
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  powershell:
+    name: PowerShell / ${{ matrix.area }} / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        area: ['.', learn, azure, m365]
+        os: [ubuntu-latest]
+        include:
+          - area: '.'
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: ${{ matrix.area }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install validation dependencies
+        run: |
+          Install-Module Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser -SkipPublisherCheck
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Force -Scope CurrentUser
+      - name: Analyze PowerShell
+        run: |
+          Import-Module PSScriptAnalyzer -RequiredVersion 1.25.0
+          $settings = @{}
+          $trees = switch ('${{ matrix.area }}') {
+            '.' { './Cloudwright.psm1'; './Install-Cloudwright.ps1'; './Get-Cloudwright.ps1' }
+            'learn' {
+              $settings.Settings = './PSScriptAnalyzerSettings.psd1'
+              './src'; './Start-MsScripter.ps1'
+            }
+            'azure' { './scripts/powershell'; './runbooks' }
+            'm365' { './scripts/powershell'; './Install-Toolkit.ps1'; './Start-Toolkit.ps1' }
+          }
+          $results = @(foreach ($tree in $trees) {
+            Invoke-ScriptAnalyzer -Path $tree -Recurse -Severity Warning,Error @settings
+          })
+          $results | Format-Table RuleName,ScriptName,Line,Message -AutoSize -Wrap
+          if ($results.Count) { throw "PSScriptAnalyzer found $($results.Count) issue(s)." }
+      - name: Run Pester
+        run: |
+          Import-Module Pester -RequiredVersion 5.7.1
+          Invoke-Pester -Path ./tests -CI
+
+  documents:
+    name: XAML, example configuration, and Windows paths
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        run: |
+          Get-ChildItem ./azure/scripts/powershell/gui,./m365/scripts/powershell/gui -Recurse -Filter '*.xaml' |
+            ForEach-Object { [xml]$null = Get-Content $_.FullName -Raw }
+          Get-ChildItem ./m365/config -Recurse -Filter '*.json' |
+            ForEach-Object { $null = Get-Content $_.FullName -Raw | ConvertFrom-Json }
+          $collisions = @(git ls-files | Group-Object { $_.ToLowerInvariant() } | Where-Object Count -gt 1)
+          if ($collisions) { throw "Filenames collide on Windows: $($collisions.Name -join ', ')" }
+
+  bicep:
+    name: Bicep build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          az bicep install
+          find azure/infra -name '*.bicep' -print0 | while IFS= read -r -d '' file; do
+            az bicep build --file "$file" --stdout > /dev/null
+          done
+
+  shell:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: find azure/scripts/cli -name '*.sh' -print0 | xargs -0 shellcheck

@@ -1,0 +1,36 @@
+# Real values live in local-only files that never get committed.
+# Anything matching these patterns is safe to keep next to the scripts.
+*.local.*
+*.local.json
+*.secrets.*
+.env
+*.env
+local.settings.json
+
+# Certificates and keys
+*.pfx
+*.pem
+*.key
+*.publishsettings
+
+# Compiled ARM output. Bicep is the source of truth.
+infra/**/*.json
+
+# Test and tool output
+TestResults/
+*.trx
+coverage.xml
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Pester -CI output
+testResults.xml
+
+# Your own in-guest scripts (Scripting > Windows scripts lists them too)
+scripts/powershell/library/local/

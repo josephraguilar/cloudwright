@@ -1,0 +1,27 @@
+# Generated scripts land here by default. They may contain tenant-specific names.
+out/
+
+# Real values live in local-only files that never get committed.
+*.local.*
+*.local.json
+*.secrets.*
+.env
+*.env
+
+# Certificates and keys
+*.pfx
+*.pem
+*.key
+
+# Test and tool output
+TestResults/
+*.trx
+coverage.xml
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db

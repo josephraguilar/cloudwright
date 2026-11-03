@@ -1,0 +1,1 @@
+New-AzWvdApplicationGroup -Name 'hp-lab-DAG' -ResourceGroupName 'sample-resourcegroupname' -Location 'eastus2' -ApplicationGroupType 'Desktop' -HostPoolArmPath (Get-AzWvdHostPool -Name 'sample-hostpoolname' -ResourceGroupName 'sample-resourcegroupname').Id

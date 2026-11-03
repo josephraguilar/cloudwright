@@ -1,0 +1,1 @@
+New-AzStorageAccount -Name 'stavdlabprof01' -ResourceGroupName 'sample-resourcegroupname' -Location 'eastus2' -SkuName 'Standard_LRS' -Kind 'StorageV2' -MinimumTlsVersion 'TLS1_2' -AllowBlobPublicAccess $false

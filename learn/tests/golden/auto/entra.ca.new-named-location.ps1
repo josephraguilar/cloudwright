@@ -1,0 +1,1 @@
+New-MgIdentityConditionalAccessNamedLocation -BodyParameter @{ '@odata.type' = '#microsoft.graph.ipNamedLocation'; displayName = 'HQ and VPN egress'; isTrusted = $true; ipRanges = @(@('203.0.113.0/24') | ForEach-Object { @{ '@odata.type' = '#microsoft.graph.iPv4CidrRange'; cidrAddress = $_ } }) }

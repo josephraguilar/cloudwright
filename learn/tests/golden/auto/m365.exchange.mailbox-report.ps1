@@ -1,0 +1,1 @@
+Get-EXOMailbox -ResultSize Unlimited | Get-EXOMailboxStatistics | Sort-Object TotalItemSize -Descending | Select-Object -First 25 DisplayName, TotalItemSize, ItemCount, LastLogonTime | Format-Table -AutoSize

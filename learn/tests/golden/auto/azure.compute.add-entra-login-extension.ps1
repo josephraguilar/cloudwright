@@ -1,0 +1,3 @@
+Update-AzVM -ResourceGroupName 'sample-resourcegroupname' -VM (Get-AzVM -Name 'sample-vmname' -ResourceGroupName 'sample-resourcegroupname') -IdentityType SystemAssigned
+Set-AzVMExtension -ResourceGroupName 'sample-resourcegroupname' -VMName 'sample-vmname' -Location 'eastus2' -Name 'AADLoginForWindows' -Publisher 'Microsoft.Azure.ActiveDirectory' -ExtensionType 'AADLoginForWindows' -TypeHandlerVersion '2.0'
+New-AzRoleAssignment -ObjectId 'sample-groupobjectid' -RoleDefinitionName 'Virtual Machine User Login' -Scope (Get-AzVM -Name 'sample-vmname' -ResourceGroupName 'sample-resourcegroupname').Id

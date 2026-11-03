@@ -1,0 +1,15 @@
+{
+  "_comment": "Copy to config/gdap-roles.local.json (gitignored). roles may be a list of Entra role display names (or role definition GUIDs), or the keyword \"allAdmin\": every role in the toolkit's fixed, verified role table in GdapHelpers (27 roles: every one ending in Administrator plus Global Reader, Security Reader, Reports Reader and Directory Readers). It is the same list signed in or not; it never grows from the live Graph list. Global Administrator, Privileged Role Administrator and Privileged Authentication Administrator are included (owner's decision for Admin Agents) and are always listed first in every plan and confirmation. Global Administrator is included, which is why autoExtendDuration must be PT0S (Microsoft rule): relationships are renewed every 730 days instead of auto-extending. groups are the security groups in OUR tenant that receive the roles after approval; \"all\" means every template role.",
+  "name": "MSP standard GDAP",
+  "displayNamePattern": "MSP GDAP - {customer}",
+  "duration": "P730D",
+  "autoExtendDuration": "PT0S",
+  "roles": "allAdmin",
+  "groups": [
+    {
+      "name": "Admin Agents",
+      "id": "3bce0ca3-a753-4fe5-b425-af6546ee54fc",
+      "roles": "all"
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+<!-- GDAP Management view. Layout only; every click handler lives in Start-M365Gui.ps1 and calls GdapHelpers. -->
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="{StaticResource ContainerPadding}" MaxWidth="1280">
+
+      <TextBlock Style="{StaticResource SectionHeading}" Text="GDAP Management"/>
+      <TextBlock Style="{StaticResource SecondaryText}" Margin="0,8,0,32"
+                 Text="Inspect a customer's Granular Delegated Admin Privileges, compare them to our template, request what is missing, and assign our security groups. Nothing changes without a preview."/>
+
+      <!-- Partner sign-in -->
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel>
+            <TextBlock Style="{StaticResource OverlineText}" Text="Step 1"/>
+            <TextBlock Style="{StaticResource CardTitle}" Text="Partner sign-in"/>
+            <StackPanel Orientation="Horizontal">
+              <Border x:Name="SignInChip" Style="{StaticResource Chip}"><TextBlock x:Name="SignInChipText" Style="{StaticResource ChipText}" Text="Not signed in"/></Border>
+              <TextBlock x:Name="SignInAccount" Style="{StaticResource SecondaryText}" Margin="12,0,0,0" VerticalAlignment="Center" Text=""/>
+            </StackPanel>
+          </StackPanel>
+          <Button x:Name="SignInButton" Grid.Column="1" Style="{StaticResource SecondaryButton}" VerticalAlignment="Top" Content="Sign in to partner tenant"/>
+        </Grid>
+      </Border>
+
+      <!-- Customer -->
+      <Border Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource OverlineText}" Text="Step 2"/>
+          <TextBlock Style="{StaticResource CardTitle}" Text="Customer"/>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="CustomerInput" Style="{StaticResource Input}" ToolTip="Tenant GUID, contoso.onmicrosoft.com, or a verified domain"/>
+            <Button x:Name="PickCustomerButton" Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" Content="Pick existing" ToolTip="Customers that already have a GDAP relationship with us" IsEnabled="False"/>
+            <Button x:Name="InspectButton" Grid.Column="2" Style="{StaticResource PrimaryButton}" Margin="12,0,0,0" Content="Inspect" IsEnabled="False"/>
+          </Grid>
+          <TextBlock x:Name="CustomerResolved" Style="{StaticResource CaptionText}" Margin="0,8,0,0" Text=""/>
+        </StackPanel>
+      </Border>
+
+      <!-- Relationships -->
+      <Border Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource OverlineText}" Text="Step 3"/>
+          <TextBlock Style="{StaticResource CardTitle}" Text="Existing relationships"/>
+          <ItemsControl x:Name="RelationshipList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Style="{StaticResource ListRow}">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <TextBlock Style="{StaticResource BodyText}" FontWeight="Medium" Text="{Binding DisplayName}"/>
+                      <TextBlock Style="{StaticResource SecondaryText}" Text="{Binding Summary}"/>
+                    </StackPanel>
+                    <Border Grid.Column="1" Style="{Binding ChipStyle}" VerticalAlignment="Center">
+                      <TextBlock Style="{StaticResource ChipTextOnColor}" Text="{Binding Status}"/>
+                    </Border>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock x:Name="RelationshipEmpty" Style="{StaticResource SecondaryText}" Text="Inspect a customer to list relationships."/>
+        </StackPanel>
+      </Border>
+
+      <!-- Compliance -->
+      <Border Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource OverlineText}" Text="Step 4"/>
+          <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Style="{StaticResource CardTitle}" Margin="0" Text="Compliance against template"/>
+            <Border x:Name="StateChip" Grid.Column="1" Style="{StaticResource Chip}"><TextBlock x:Name="StateChipText" Style="{StaticResource ChipText}" Text="Not checked"/></Border>
+          </Grid>
+          <TextBlock x:Name="ComplianceSummary" Style="{StaticResource BodyText}" Text=""/>
+          <TextBlock Style="{StaticResource OverlineText}" Margin="0,16,0,4" Text="Proposed actions"/>
+          <ItemsControl x:Name="ActionList">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Style="{StaticResource ListRow}">
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource BodyText}" FontWeight="Medium" Text="{Binding Action}"/>
+                    <TextBlock Style="{StaticResource SecondaryText}" Text="{Binding Detail}"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock x:Name="ActionEmpty" Style="{StaticResource SecondaryText}" Text="No actions yet."/>
+          <ItemsControl x:Name="WarningList" Margin="0,8,0,0">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Style="{StaticResource SecondaryText}" Foreground="{StaticResource WarningBrush}" Text="{Binding}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+            <Button x:Name="CreateRequestButton" Style="{StaticResource PrimaryButton}" Content="Prepare approval request" IsEnabled="False"/>
+            <Button x:Name="RepairAssignmentsButton" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" Content="Prepare group assignments" IsEnabled="False"/>
+          </StackPanel>
+          <TextBlock Style="{StaticResource CaptionText}" Margin="0,8,0,0" Text="Prepare writes the exact script command into the Review and run panel below. Nothing runs until you have read it."/>
+        </StackPanel>
+      </Border>
+
+      <!-- Approval -->
+      <Border Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource OverlineText}" Text="Step 5"/>
+          <Grid Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Style="{StaticResource CardTitle}" Margin="0" Text="Customer approval"/>
+            <Border x:Name="ApprovalChip" Grid.Column="1" Style="{StaticResource Chip}"><TextBlock x:Name="ApprovalChipText" Style="{StaticResource ChipText}" Text="No request"/></Border>
+          </Grid>
+          <TextBlock Style="{StaticResource SecondaryText}" Margin="0,0,0,12"
+                     Text="Opens Microsoft's approval page here, in an isolated browser session. Sign in with your admin account in the customer tenant, review the roles, approve. Copy the link instead when the client's own administrator approves."/>
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="ApprovalUrl" Style="{StaticResource Input}" FontFamily="{StaticResource CodeFontFamily}" FontSize="13" IsReadOnly="True"/>
+            <Button x:Name="CopyUrlButton" Grid.Column="1" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" Content="Copy link" IsEnabled="False"/>
+            <Button x:Name="OpenUrlButton" Grid.Column="2" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" Content="Open approval page" IsEnabled="False"/>
+          </Grid>
+          <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+            <Button x:Name="WatchButton" Style="{StaticResource SecondaryButton}" Content="Watch for approval" IsEnabled="False"/>
+            <Button x:Name="StopWatchButton" Style="{StaticResource GhostButton}" Margin="12,0,0,0" Content="Stop watching" IsEnabled="False"/>
+            <TextBlock x:Name="WatchStatus" Style="{StaticResource SecondaryText}" Margin="16,0,0,0" VerticalAlignment="Center" Text=""/>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

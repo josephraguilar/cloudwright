@@ -1,0 +1,1 @@
+Get-AzNetworkSecurityGroup -Name 'sample-nsgname' -ResourceGroupName 'sample-resourcegroupname' | Add-AzNetworkSecurityRuleConfig -Name 'Allow-RDP-From-Office' -Priority 100 -Direction 'Inbound' -Access 'Allow' -Protocol 'Tcp' -SourceAddressPrefix '203.0.113.10/32' -SourcePortRange '*' -DestinationAddressPrefix '*' -DestinationPortRange '3389' | Set-AzNetworkSecurityGroup

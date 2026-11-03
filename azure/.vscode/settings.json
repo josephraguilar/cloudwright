@@ -1,0 +1,7 @@
+{
+  "powershell.codeFormatting.preset": "OTBS",
+  "powershell.scriptAnalysis.enable": true,
+  "[bicep]": {
+    "editor.formatOnSave": true
+  }
+}

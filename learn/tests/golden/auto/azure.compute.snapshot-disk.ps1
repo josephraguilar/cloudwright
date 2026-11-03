@@ -1,0 +1,1 @@
+New-AzSnapshot -ResourceGroupName 'sample-resourcegroupname' -SnapshotName 'vm-jump-01-osdisk-before-patch' -Snapshot (New-AzSnapshotConfig -SourceUri (Get-AzDisk -ResourceGroupName 'sample-resourcegroupname' -DiskName 'sample-diskname').Id -Location 'eastus2' -CreateOption 'Copy' -Incremental)

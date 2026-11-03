@@ -1,0 +1,36 @@
+# Real values live in local-only files that never get committed.
+# config/msp.settings.local.json and config/clients/<client>.local.json hold the
+# real tenant names, addresses and IDs. Only the *.example.json files are tracked.
+*.local.*
+*.local.json
+*.secrets.*
+.env
+*.env
+
+# Onboarding run records (contain client names and object IDs)
+runs/
+
+# Third-party binaries dropped in locally (WebView2 assemblies, fonts)
+scripts/powershell/gui/lib/**
+!scripts/powershell/gui/lib/**/README.md
+scripts/powershell/gui/fonts/*.ttf
+scripts/powershell/gui/fonts/*.otf
+
+# Certificates, keys, exported credentials
+*.pfx
+*.pem
+*.key
+*.cer
+
+# Test and tool output
+TestResults/
+*.trx
+coverage.xml
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db

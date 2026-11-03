@@ -1,0 +1,1 @@
+New-MgUser -DisplayName 'Jane Doe' -GivenName 'Jane' -Surname 'Doe' -UserPrincipalName 'jane.doe@contoso.com' -MailNickname 'jane.doe' -UsageLocation 'US' -JobTitle 'sample-jobtitle' -Department 'sample-department' -AccountEnabled -PasswordProfile @{ Password = (Read-Host -Prompt 'Initial password'); ForceChangePasswordNextSignIn = $true }

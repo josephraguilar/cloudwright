@@ -1,0 +1,46 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  powershell:
+    name: PSScriptAnalyzer + Pester
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { Install-Module PSScriptAnalyzer -Force -Scope CurrentUser }
+          $results = @(foreach ($tree in './scripts/powershell', './Install-Toolkit.ps1', './Start-Toolkit.ps1') {
+            Invoke-ScriptAnalyzer -Path $tree -Recurse -Severity Warning, Error
+          })
+          $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize -Wrap
+          if ($results.Count -gt 0) { throw "PSScriptAnalyzer found $($results.Count) issue(s)." }
+          Write-Host 'PSScriptAnalyzer: no warnings or errors.'
+
+      - name: Pester
+        shell: pwsh
+        run: |
+          Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.0
+          Invoke-Pester -Path ./tests -CI
+
+      - name: XAML is well-formed
+        shell: pwsh
+        run: |
+          Get-ChildItem ./scripts/powershell/gui -Recurse -Filter '*.xaml' | ForEach-Object {
+            [xml]$null = Get-Content $_.FullName -Raw
+            Write-Host "ok  $($_.FullName)"
+          }
+
+      - name: Example configs are valid JSON
+        shell: pwsh
+        run: |
+          Get-ChildItem ./config -Recurse -Filter '*.json' | ForEach-Object {
+            $null = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            Write-Host "ok  $($_.FullName)"
+          }

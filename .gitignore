@@ -1,0 +1,18 @@
+# Local tenant settings, credentials, and generated outputs
+*.local.*
+*.secrets.*
+.env
+.env.*
+*.pfx
+*.p12
+*.key
+*.pem
+
+# Validation and package output
+dist/
+[Tt]est[Rr]esults.xml
+test-results/
+.DS_Store
+Thumbs.db
+Cloudwright.location.json
+Cloudwright.download.json

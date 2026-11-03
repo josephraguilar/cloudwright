@@ -1,0 +1,41 @@
+{
+  "_comment": "Copy to config/clients/<shortName>.local.json (gitignored). shortName becomes the mail alias local part (lowercase letters, digits, hyphens). tenantId is for the Graph sign-in: the tenant GUID or any verified domain. onmicrosoftDomain is the root domain set when the tenant was created (often not by us) and is where break-glass and admin accounts live; it is required unless tenantId already is that domain.",
+  "name": "Contoso Dental",
+  "shortName": "contoso",
+  "tenantId": "11111111-2222-3333-4444-555555555555",
+  "onmicrosoftDomain": "contoso.onmicrosoft.com",
+  "primaryDomain": "contosodental.example",
+  "domains": [
+    "contosodental.example"
+  ],
+  "internalAlias": "contoso.clients@msp.example",
+  "huduCompanyId": 0,
+  "support24x7": false,
+  "ironScales": false,
+  "americanHelpDesk": false,
+  "poc": [
+    {
+      "name": "Jane Doe",
+      "email": "jane@contosodental.example",
+      "title": "Office Manager"
+    }
+  ],
+  "newUserDefaults": {
+    "usageLocation": "US",
+    "licenses": [
+      "SPB"
+    ],
+    "groups": [],
+    "distributionLists": [],
+    "timeZone": "Pacific Standard Time",
+    "language": "en-US",
+    "issueTemporaryAccessPass": true,
+    "temporaryAccessPassHours": 8
+  },
+  "_optional": {
+    "internalAlias": "The alias added to clients@msp.example for this client. Defaults to msp.clientAliasPattern with {shortName} filled in; the console wizard asks you to confirm it.",
+    "support24x7": "true when the client is on the 24x7 plan; selects which support phone number documents and templates show.",
+    "contactAddress": "Address used for the hidden mail contact and IT@ list member in the client tenant. Defaults to internalAlias.",
+    "newUserDefaults": "Used by lifecycle/Invoke-M365UserOnboarding.ps1. licenses are SKU part numbers (SPB = Business Premium, O365_BUSINESS_ESSENTIALS = Business Basic, SPE_E3 = E3); see reports/Get-M365LicenseReport.ps1 for the tenant's SKUs. groups are Entra security or Microsoft 365 groups: an exact display name that matches exactly one group, or the group's object id (use the id when two groups share a name; entra/Get-M365Group.ps1 lists them). Distribution lists and mail-enabled security groups go in distributionLists, as the list's primary address (preferred) or exact name. issueTemporaryAccessPass is only ever applied to an account the run creates."
+  }
+}

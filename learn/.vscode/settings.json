@@ -1,0 +1,5 @@
+{
+  "powershell.codeFormatting.preset": "OTBS",
+  "powershell.scriptAnalysis.enable": true,
+  "powershell.scriptAnalysis.settingsPath": "PSScriptAnalyzerSettings.psd1"
+}

@@ -1,0 +1,51 @@
+{
+  "_comment": "Copy to config/msp.settings.local.json (gitignored) and fill in. Values in <angle brackets> are placeholders and fail validation until replaced. clientAliasPattern: {shortName} is replaced per client; the tech confirms the final alias in the client config.",
+  "msp": {
+    "name": "Example MSP",
+    "shortName": "MSP",
+    "homeTenantId": "examplemsp.onmicrosoft.com",
+    "adminUpn": "<your-partner-account@msp.example>",
+    "sharedClientsMailbox": "clients@msp.example",
+    "clientAliasPattern": "{shortName}.clients@msp.example",
+    "supportEmail": "support@msp.example",
+    "supportPhone": "+1-202-555-0100",
+    "supportPhone24x7": "+1-202-555-0199",
+    "address": "123 Example Street, Example City, NY 10000",
+    "clientNotificationsDl": "Client Notifications"
+  },
+  "partner": {
+    "_comment": "Partner Center settings. Replace tenantId with your partner tenant GUID. gdapTemplate names the local role template under config/.",
+    "tenantId": "22222222-2222-2222-2222-222222222222",
+    "gdapTemplate": "gdap-roles.local.json",
+    "approvalPollSeconds": 20,
+    "approvalTimeoutMinutes": 30
+  },
+  "breakGlass": {
+    "upnPrefix": "breakglass",
+    "displayName": "Emergency Access",
+    "passwordLength": 64,
+    "excludeFromConditionalAccess": true
+  },
+  "adminAccounts": [
+    {
+      "upnPrefix": "mspadmin",
+      "displayName": "Example MSP Admin",
+      "roles": [
+        "Global Administrator"
+      ]
+    }
+  ],
+  "distributionLists": {
+    "it": "IT",
+    "alerts": "MSPalerts"
+  },
+  "ironScalesReportMailbox": "911",
+  "hudu": {
+    "baseUrl": "https://docs.msp.example",
+    "apiKeyEnvVar": "HUDU_API_KEY"
+  },
+  "onboarding": {
+    "internalSopUrl": "",
+    "tenantSopUrl": ""
+  }
+}

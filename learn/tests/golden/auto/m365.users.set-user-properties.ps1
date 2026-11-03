@@ -1,0 +1,1 @@
+Update-MgUser -UserId 'sample-userid' -JobTitle 'sample-jobtitle' -Department 'sample-department' -OfficeLocation 'sample-officelocation' -MobilePhone 'sample-mobilephone' -CompanyName 'sample-companyname'

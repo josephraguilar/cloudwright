@@ -1,0 +1,1 @@
+New-AzWvdWorkspace -Name 'ws-lab' -ResourceGroupName 'sample-resourcegroupname' -Location 'eastus2' -FriendlyName 'Contoso Lab Desktop' -ApplicationGroupReference (Get-AzWvdApplicationGroup -Name 'sample-appgroupname' -ResourceGroupName 'sample-resourcegroupname').Id

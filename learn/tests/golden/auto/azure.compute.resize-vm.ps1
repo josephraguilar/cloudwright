@@ -1,0 +1,1 @@
+Update-AzVM -ResourceGroupName 'sample-resourcegroupname' -VM (Get-AzVM -Name 'sample-vmname' -ResourceGroupName 'sample-resourcegroupname' | ForEach-Object { $_.HardwareProfile.VmSize = 'sample-newsize'; $_ })

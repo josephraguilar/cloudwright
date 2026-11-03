@@ -1,0 +1,1 @@
+New-AzVirtualNetwork -Name 'vnet-avd-lab' -ResourceGroupName 'rg-avd-lab' -Location 'eastus2' -AddressPrefix '10.10.0.0/16' -Subnet (New-AzVirtualNetworkSubnetConfig -Name 'snet-hosts' -AddressPrefix '10.10.1.0/24')

@@ -1,0 +1,1 @@
+Get-AzVirtualNetwork -Name 'sample-vnetname' -ResourceGroupName 'sample-resourcegroupname' | Set-AzVirtualNetworkSubnetConfig -Name 'snet-hosts' -AddressPrefix '10.10.1.0/24' -NetworkSecurityGroup (Get-AzNetworkSecurityGroup -Name 'sample-nsgname' -ResourceGroupName 'sample-resourcegroupname') | Set-AzVirtualNetwork

@@ -1,0 +1,132 @@
+<!--
+  Window shell for Start-AvdGui.ps1, laid out like a management console:
+    top bar      app name, feature search, subscription picker, account menu
+    rail         one button per section (Insights, Entra, Cloud desktops, Azure, ...)
+                 plus "All features"; built in code from $Gui.NavTree
+    section panel  the selected section's groups and links (built in code too);
+                 the menu button in the top bar hides and shows it
+    page         the current page
+    log, status  as before
+  Pages and the section panel are built in PowerShell (see the script's "Pages" and
+  "Navigation" regions). Named elements (x:Name) are what the script wires up.
+-->
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Azure Toolbox" Width="1400" Height="900" MinWidth="1100" MinHeight="700"
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource Brush.Background}"
+        FontFamily="{DynamicResource Font.Body}" TextOptions.TextFormattingMode="Display" UseLayoutRounding="True">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="56"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+
+    <!-- Top bar -->
+    <Border Grid.Row="0" Background="{DynamicResource Brush.TopBar}" Padding="12,0,16,0">
+      <Grid VerticalAlignment="Center">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Button x:Name="MenuToggle" Grid.Column="0" Content="&#x2630;" Style="{DynamicResource TopBarButton}" ToolTip="Show or hide the section panel" FontSize="18" Padding="8,2"/>
+        <TextBlock Grid.Column="1" Text="Azure Toolbox" Style="{DynamicResource TopBarTitle}" Margin="8,0,24,0"/>
+        <TextBox x:Name="SearchBox" Grid.Column="2" MaxWidth="460" HorizontalAlignment="Center" Style="{DynamicResource TopBarSearch}" ToolTip="Type to filter the All features page"/>
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="16,0,0,0">
+          <TextBlock Text="Subscription" Style="{DynamicResource TopBarLabel}" Margin="0,0,8,0"/>
+          <ComboBox x:Name="SubscriptionCombo" Width="240" IsEnabled="False"/>
+        </StackPanel>
+        <!-- Host pools are picked on the Host pools page; this hidden list only holds them. -->
+        <ComboBox x:Name="PoolCombo" Grid.Column="4" Visibility="Collapsed"/>
+        <Button x:Name="AccountButton" Grid.Column="5" Style="{DynamicResource TopBarButton}" Margin="16,0,0,0" ToolTip="Account: switch or sign in again">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="AccountText" Text="Not signed in" Foreground="{DynamicResource Brush.OnPrimary}" FontWeight="SemiBold"/>
+            <TextBlock Text=" &#x25BE;" Foreground="{DynamicResource Brush.OnPrimary}"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Border>
+
+    <!-- Body -->
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="190"/>
+        <ColumnDefinition x:Name="SectionColumn" Width="250"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*" MinHeight="160"/>
+        <RowDefinition Height="8"/>
+        <RowDefinition Height="200" MinHeight="60"/>
+        <RowDefinition Height="32"/>
+      </Grid.RowDefinitions>
+
+      <!-- Rail: sections -->
+      <Border Grid.Column="0" Grid.Row="0" Grid.RowSpan="4" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,1,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="Rail" Margin="0,12,0,0">
+            <Border Padding="16,8,16,12" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,0,1" Margin="0,0,0,8">
+              <StackPanel>
+                <TextBlock x:Name="TenantText" Text="" Style="{DynamicResource Caption}"/>
+                <TextBlock x:Name="ContextText" Text="No subscription" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                <TextBlock x:Name="PoolText" Text="No host pool" Style="{DynamicResource Caption}" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Cursor="Hand" ToolTip="The host pool pages work on. Click to change it on the Host pools page."/>
+              </StackPanel>
+            </Border>
+            <Button x:Name="RailAll" Content="All features" Tag="active" Style="{DynamicResource RailButton}"/>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- Section panel: groups and links of the selected section -->
+      <Border x:Name="SectionPanel" Grid.Column="1" Grid.Row="0" Grid.RowSpan="4" Background="{DynamicResource Brush.Background}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,0,1,0">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel>
+            <TextBlock x:Name="SectionTitle" Text="" Style="{DynamicResource SectionPanelTitle}" Margin="16,18,16,8"/>
+            <StackPanel x:Name="SectionItems" Margin="0,0,0,16"/>
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- Page -->
+      <ScrollViewer x:Name="PageScroll" Grid.Column="2" Grid.Row="0" VerticalScrollBarVisibility="Auto" Padding="24,20,24,8">
+        <ContentControl x:Name="PageHost" MaxWidth="1240" HorizontalAlignment="Left"/>
+      </ScrollViewer>
+
+      <!-- Drag handle: resizes the log pane against the page above it -->
+      <GridSplitter Grid.Column="2" Grid.Row="1" Height="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Style="{DynamicResource RowSplitter}" ToolTip="Drag to resize the log"/>
+
+      <!-- Log -->
+      <Border Grid.Column="2" Grid.Row="2" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="32"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <DockPanel Grid.Row="0" Margin="24,0,16,0">
+            <TextBlock Text="Log" Style="{DynamicResource SectionLabel}" Margin="0" VerticalAlignment="Center"/>
+            <Button x:Name="ClearLogButton" Content="Clear" DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{DynamicResource GhostButton}" MinHeight="24" Padding="8,0" FontSize="12"/>
+          </DockPanel>
+          <TextBox x:Name="LogBox" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                   Background="Transparent" BorderThickness="0" FontFamily="{DynamicResource Font.Mono}" FontSize="12.5" Margin="16,0,16,8" MinHeight="0"/>
+        </Grid>
+      </Border>
+
+      <!-- Status -->
+      <Border Grid.Column="2" Grid.Row="3" Background="{DynamicResource Brush.Surface}" BorderBrush="{DynamicResource Brush.Border}" BorderThickness="0,1,0,0" Padding="24,0,16,0">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="160"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock x:Name="StatusText" Text="Ready" Style="{DynamicResource Caption}"/>
+          <ProgressBar x:Name="BusyBar" Grid.Column="1" IsIndeterminate="True" Visibility="Collapsed" VerticalAlignment="Center"/>
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</Window>

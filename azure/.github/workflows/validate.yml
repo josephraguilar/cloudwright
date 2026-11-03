@@ -1,0 +1,53 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  powershell:
+    name: PSScriptAnalyzer + Pester
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable PSScriptAnalyzer)) { Install-Module PSScriptAnalyzer -Force -Scope CurrentUser }
+          # -Path takes one string, so analyze each tree separately and merge.
+          $results = @(foreach ($tree in './scripts/powershell', './runbooks') {
+            Invoke-ScriptAnalyzer -Path $tree -Recurse -Severity Warning, Error
+          })
+          $results | Format-Table RuleName, Severity, ScriptName, Line, Message -AutoSize -Wrap
+          if ($results.Count -gt 0) { throw "PSScriptAnalyzer found $($results.Count) issue(s)." }
+          Write-Host 'PSScriptAnalyzer: no warnings or errors.'
+
+      - name: Pester
+        shell: pwsh
+        run: |
+          Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.0
+          Invoke-Pester -Path ./tests -CI
+
+  bicep:
+    name: Bicep build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build every .bicep file
+        run: |
+          az bicep install
+          find infra -name '*.bicep' -print0 | while IFS= read -r -d '' f; do
+            echo "Building $f"
+            az bicep build --file "$f" --stdout > /dev/null
+          done
+
+  shell:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: find scripts/cli -name '*.sh' -print0 | xargs -0 shellcheck

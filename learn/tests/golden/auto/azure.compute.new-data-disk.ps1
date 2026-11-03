@@ -1,0 +1,1 @@
+Get-AzVM -Name 'sample-vmname' -ResourceGroupName 'sample-resourcegroupname' | Add-AzVMDataDisk -Name 'vm-data-01' -CreateOption Empty -DiskSizeInGB 128 -Lun 0 -StorageAccountType 'Premium_LRS' | Update-AzVM -ResourceGroupName 'sample-resourcegroupname'

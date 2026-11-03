@@ -1,0 +1,1 @@
+Invoke-AzVMRunCommand -ResourceGroupName 'sample-resourcegroupname' -VMName 'sample-vmname' -CommandId 'RunPowerShellScript' -ScriptString 'hostname; whoami; Get-Service -Name RDAgent* | Select-Object Name, Status'

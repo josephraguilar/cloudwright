@@ -1,0 +1,1 @@
+New-AzWvdHostPool -Name 'hp-lab' -ResourceGroupName 'sample-resourcegroupname' -Location 'eastus2' -HostPoolType 'Pooled' -LoadBalancerType 'BreadthFirst' -MaxSessionLimit 10 -PreferredAppGroupType 'Desktop' -CustomRdpProperty 'targetisaadjoined:i:1;enablerdsaadauth:i:1;' -StartVMOnConnect

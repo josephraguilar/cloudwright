@@ -1,0 +1,184 @@
+{
+  "_comment": "Copy to config/baselines/security.local.json to change expectations. Two groups of checks: Microsoft security posture, and the MSP standard setup our onboarding creates (break-glass, mspadmin, hidden contacts, IT@ and MSPalerts@ lists, technical contact). Each check: expected value (true/false, a string, a number, or {min,max}), severity, and the remediation (a task script in this repo, or 'manual'). Test-M365SecurityBaseline.ps1 compares a tenant against this and never changes anything. The MSP checks need the client config (-Client) so the audit knows the client's alias and domain.",
+  "name": "MSP Microsoft 365 security baseline",
+  "checks": [
+    {
+      "id": "mfaEnforced",
+      "title": "MFA required for all users (Security Defaults, or an enabled CA policy for All users and All cloud apps)",
+      "expected": true,
+      "severity": "High",
+      "remediation": "security/Set-M365SecurityDefaults.ps1 -State On, or an enabled CA policy requiring MFA for All users, All cloud apps and all client apps"
+    },
+    {
+      "id": "legacyAuthBlocked",
+      "title": "Legacy authentication blocked (Security Defaults or CA)",
+      "expected": true,
+      "severity": "High",
+      "remediation": "security/Set-M365SecurityDefaults.ps1 -State On, or an enabled CA policy for All users and All cloud apps that blocks Exchange ActiveSync and other clients"
+    },
+    {
+      "id": "unifiedAuditLog",
+      "title": "Unified audit log ingestion enabled",
+      "expected": true,
+      "severity": "High",
+      "remediation": "security/Set-M365AuditLogging.ps1"
+    },
+    {
+      "id": "mailboxAuditing",
+      "title": "Mailbox auditing on by default",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "security/Set-M365AuditLogging.ps1"
+    },
+    {
+      "id": "autoForwardingBlocked",
+      "title": "Automatic external forwarding blocked (default outbound spam policy Off, and no enabled custom policy allowing it)",
+      "expected": true,
+      "severity": "High",
+      "remediation": "security/Set-M365ExternalForwarding.ps1 -Mode Off (default policy); set any custom policy named in Actual to Off by hand: Set-HostedOutboundSpamFilterPolicy -Identity <name> -AutoForwardingMode Off"
+    },
+    {
+      "id": "externalSenderTag",
+      "title": "External sender tag in Outlook enabled",
+      "expected": true,
+      "severity": "Low",
+      "remediation": "security/Set-M365ExternalSenderTag.ps1 -State On"
+    },
+    {
+      "id": "modernAuth",
+      "title": "Modern authentication (OAuth2) enabled in Exchange Online",
+      "expected": true,
+      "severity": "High",
+      "remediation": "manual: Set-OrganizationConfig -OAuth2ClientProfileEnabled $true"
+    },
+    {
+      "id": "smtpAuthDisabled",
+      "title": "SMTP AUTH disabled organization-wide",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "security/Set-M365SmtpAuth.ps1 -State Off (re-enable per mailbox for devices that need it)"
+    },
+    {
+      "id": "spoofIntelligence",
+      "title": "Anti-phish spoof intelligence enabled on the default policy",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "manual: Set-AntiPhishPolicy -Identity 'Office365 AntiPhish Default' -EnableSpoofIntelligence $true"
+    },
+    {
+      "id": "dkimAllDomains",
+      "title": "DKIM signing enabled on every custom accepted domain",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "mailauth/Enable-M365Dkim.ps1 -Domain <each>"
+    },
+    {
+      "id": "passwordNeverExpires",
+      "title": "Password expiration disabled (Microsoft and NIST guidance)",
+      "expected": true,
+      "severity": "Low",
+      "remediation": "manual: Update-MgDomain -DomainId <domain> -PasswordValidityPeriodInDays 2147483647"
+    },
+    {
+      "id": "ssprEnabled",
+      "title": "Self-service password reset allowed",
+      "expected": true,
+      "severity": "Low",
+      "remediation": "manual: Entra admin center > Password reset"
+    },
+    {
+      "id": "userConsentBlocked",
+      "title": "Users cannot consent to third-party apps",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "manual: Entra admin center > Enterprise apps > Consent and permissions"
+    },
+    {
+      "id": "guestInviteRestricted",
+      "title": "Guest invitations limited to admins and guest inviters (or disabled)",
+      "expected": true,
+      "severity": "Low",
+      "remediation": "manual: Entra admin center > External identities > External collaboration settings"
+    },
+    {
+      "id": "globalAdminCount",
+      "title": "Between 2 and 4 Global Administrators (including break-glass)",
+      "expected": {
+        "min": 2,
+        "max": 4
+      },
+      "severity": "Medium",
+      "remediation": "entra/Get-M365UserReview.ps1 to list admins; remove roles by hand"
+    },
+    {
+      "id": "breakGlassExists",
+      "title": "Break-glass account exists",
+      "expected": true,
+      "severity": "High",
+      "remediation": "entra/New-M365BreakGlassAccount.ps1"
+    },
+    {
+      "id": "sharedMailboxSignInBlocked",
+      "title": "No shared mailbox with sign-in enabled",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "lifecycle/Disable-M365UserSignIn.ps1 -UserPrincipalName <shared mailbox UPN>"
+    },
+    {
+      "id": "breakGlassIsGlobalAdmin",
+      "title": "MSP: break-glass account holds Global Administrator",
+      "expected": true,
+      "severity": "High",
+      "remediation": "entra/New-M365BreakGlassAccount.ps1 (idempotent; re-assigns the role)"
+    },
+    {
+      "id": "breakGlassExcludedFromCA",
+      "title": "MSP: break-glass account is excluded from every enabled Conditional Access policy",
+      "expected": true,
+      "severity": "High",
+      "remediation": "entra/Add-M365ConditionalAccessExclusion.ps1 -UserPrincipalName breakglass@<tenant>.onmicrosoft.com"
+    },
+    {
+      "id": "mspAdminExists",
+      "title": "MSP: mspadmin account exists",
+      "expected": true,
+      "severity": "High",
+      "remediation": "entra/New-M365AdminAccount.ps1 (or onboarding step 5.4)"
+    },
+    {
+      "id": "technicalContactSet",
+      "title": "MSP: our support address is a technical notification contact",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "entra/Set-M365TechnicalContact.ps1 (onboarding 5.9)"
+    },
+    {
+      "id": "mspContactHidden",
+      "title": "MSP: client alias (<name>.clients@) exists as a mail contact hidden from the GAL",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "exchange/New-M365MailContact.ps1 -HiddenFromAddressLists (onboarding 5.10)"
+    },
+    {
+      "id": "supportContactHidden",
+      "title": "MSP: support address exists as a mail contact hidden from the GAL",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "exchange/New-M365MailContact.ps1 -HiddenFromAddressLists (onboarding 5.12a)"
+    },
+    {
+      "id": "itListConfigured",
+      "title": "MSP: IT@<domain> distribution list exists with our contact as a member",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "exchange/New-M365DistributionList.ps1 (onboarding 5.11)"
+    },
+    {
+      "id": "alertsListConfigured",
+      "title": "MSP: MSPalerts@<domain> distribution list exists with the support contact as a member",
+      "expected": true,
+      "severity": "Medium",
+      "remediation": "exchange/New-M365DistributionList.ps1 (onboarding 5.12b)"
+    }
+  ]
+}
