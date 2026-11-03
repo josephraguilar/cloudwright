@@ -70,8 +70,13 @@ Describe 'Cloudwright download bootstrap' {
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
         $pwsh = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
         $output = 'q' | & $pwsh -NoLogo -NoProfile -File $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -Console 2>&1 | Out-String
+        $output = $output -replace '\x1b\[[0-9;]*m', ''
         $LASTEXITCODE | Should -Be 0 -Because $output
-        $output | Should -Match 'Choose an area'
+        # Read-Host prompts use a host stream that Windows does not include in redirected output.
+        $output | Should -Match '1\. Learn Microsoft commands'
+        $output | Should -Match '2\. Manage Azure and AVD'
+        $output | Should -Match '3\. Manage Microsoft 365'
+        $output | Should -Match 'Q\. Quit'
     }
 
     It 'reuses the snapshot offline and preserves local settings' {
