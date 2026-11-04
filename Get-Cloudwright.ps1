@@ -58,7 +58,7 @@ param(
     $markerPath = Join-Path $destination $markerName
     $requiredFiles = @(
         'Cloudwright.psd1', 'Cloudwright.psm1', 'Install-Cloudwright.ps1',
-        'learn/Start-MsScripter.ps1', 'azure/scripts/powershell/Start-AvdConsole.ps1',
+        'learn/Start-MsScripter.ps1', 'azure/readonly/Start-AzureReadOnly.ps1',
         'm365/Start-Toolkit.ps1',
         'm365/scripts/powershell/modules/M365Helpers/Safety.ps1'
     )

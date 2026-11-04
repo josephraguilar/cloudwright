@@ -2,7 +2,7 @@
 
 Part of [Cloudwright](../README.md). `cloudwright azure` opens the separate
 [read-only console](readonly/README.md): subscriptions, VMs, AVD host pools, session
-hosts, user sessions, an AVD health check and networks. It changes nothing.
+hosts, user sessions, an AVD health check and networks. It is designed to change nothing.
 
 **Every legacy runtime PowerShell file under `scripts/` and `runbooks/` still refuses before
 initialization, authentication or any administration.** This includes direct scripts,

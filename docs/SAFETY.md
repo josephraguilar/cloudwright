@@ -52,18 +52,24 @@ and [Exchange RBAC](https://learn.microsoft.com/exchange/permissions-exo/permiss
 **Azure reads go through one allowlisted gateway.** The read-only console in
 `azure/readonly` is new code and never loads the legacy modules. It may call 16 named Az
 commands, each only from its expected Az module and only with its listed parameters;
-names, abbreviations and aliases outside that list are refused before any command is
-looked up. Get commands that return keys, tokens, VM user data or run-command output are
-not on the list, and reports return selected fields only, so a host pool's registration
-token is never shown. Sign-in, subscription selection and context autosave are pinned to
-`-Scope Process`, and sign-in is refused unless Az confirms process mode. The tenant and
-subscription must be GUIDs; the active context must be the account that just signed in,
-and every report re-checks tenant, account and subscription before reading. The only
-REST call is GET of the selected subscription's own permissions, used to warn when the
-account could change resources. A parse of the source in the tests admits only reviewed
-built-ins, the module's own functions and exactly one dynamic call: the gateway's.
-**The account's own Azure permissions are not reduced**: prefer an account with the Reader
-role. See [the read-only console's README](../azure/readonly/README.md) for its limits.
+names compare exactly and ordinally, so abbreviations, aliases and look-alike characters are
+refused before any command is looked up. Get commands that return keys, tokens, VM user data
+or run-command output are not on the list, and reports return selected fields only, so a
+host pool's registration token is never shown. **Az.Accounts registers a resource provider
+and retries when Azure answers "not registered to use namespace", even for a Get, if the
+account has `*/register/action`.** The gateway therefore reads the Compute, Network or AVD
+provider's registration state first and refuses the command unless it is `Registered`. Sign-in,
+subscription selection and context autosave are pinned to `-Scope Process`, and sign-in is
+refused unless Az confirms process mode; on Windows the WAM sign-in broker still remembers
+the account. The tenant and subscription must be GUIDs; the active context must be the
+account that just signed in, and every report re-checks tenant, account and subscription
+before reading. The only REST calls are GETs of the selected subscription's own permissions
+and of those three providers' registration state. The permissions are summarized to flag
+any action or data action beyond reading at subscription scope; lower scopes and deny
+assignments are not included. A parse of the source in the tests admits only reviewed
+built-ins, .NET types and methods, the module's own functions and exactly one dynamic call:
+the gateway's. **The account's own Azure permissions are not reduced**: prefer an account
+with the Reader role. See [the read-only console's README](../azure/readonly/README.md) for its limits.
 
 **Legacy Azure execution is disabled, including direct calls.** Every runtime PowerShell file
 under `azure/scripts` and `azure/runbooks`

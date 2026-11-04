@@ -13,7 +13,10 @@
 .PARAMETER UseDeviceAuthentication
     Sign in with a device code instead of a browser window.
 .EXAMPLE
-    ./Start-AzureReadOnly.ps1 -TenantId 00000000-0000-0000-0000-000000000000
+    cloudwright azure -TenantId 00000000-0000-0000-0000-000000000000
+    # Preferred: the launcher runs this in a fresh PowerShell process that exits afterwards.
+.EXAMPLE
+    pwsh -NoProfile -File ./Start-AzureReadOnly.ps1 -TenantId 00000000-0000-0000-0000-000000000000
 .NOTES
     Requires: Az.Accounts, Az.Resources, Az.Compute, Az.Network, Az.DesktopVirtualization
     Status:   Untested
@@ -84,6 +87,9 @@ function Show-SessionSummary {
     Write-Host "Tenant:       $($s.TenantId)"
     if (-not $s.SubscriptionId) { Write-Host 'Subscription: none selected (option 2)' -ForegroundColor Yellow; return }
     Write-Host "Subscription: $($s.SubscriptionName) ($($s.SubscriptionId))"
+    if ($s.SubscriptionHomeTenantId -and $s.SubscriptionHomeTenantId -ne $s.TenantId) {
+        Write-Host "              Owned by tenant $($s.SubscriptionHomeTenantId); you reach it through delegated access." -ForegroundColor Yellow
+    }
     try { $access = Get-AzReadOnlyAccess } catch {
         Write-Host "Access:       not checked: $($_.Exception.Message)" -ForegroundColor Yellow
         return
@@ -91,12 +97,15 @@ function Show-SessionSummary {
     if (-not $access.Checked) {
         Write-Host "Access:       not checked. $($access.Note)" -ForegroundColor Yellow
     } elseif ($access.CanChange) {
-        Write-Host 'Access:       this account CAN CHANGE resources here, for example:' -ForegroundColor Yellow
-        foreach ($a in $access.Examples | Select-Object -First 3) { Write-Host "                $a" -ForegroundColor Yellow }
+        Write-Host 'Access:       this account can CHANGE resources or use data access here, for example:' -ForegroundColor Yellow
+        foreach ($a in $access.Examples | Select-Object -First 5) { Write-Host "                $a" -ForegroundColor Yellow }
         Write-Host '              Cloudwright only reads, but prefer an account with the Reader role.' -ForegroundColor Yellow
         Write-Host "              $($access.Note)"
+    } elseif ($null -eq $access.CanChange) {
+        Write-Host 'Access:       no change permissions on the first page of results; the rest were not checked.' -ForegroundColor Yellow
+        Write-Host "              $($access.Note)"
     } else {
-        Write-Host 'Access:       read-only at subscription scope.' -ForegroundColor Green
+        Write-Host 'Access:       no change or data permissions found.'
         Write-Host "              $($access.Note)"
     }
 }
@@ -164,7 +173,10 @@ while ($true) {
     Write-Host '  10. Sign-in and access summary'
     Write-Host '   Q. Quit'
     $choice = "$(Read-Host 'Choose')".Trim().ToLowerInvariant()
-    if ($choice -in 'q', 'quit', 'exit') { break }
+    if ($choice -in 'q', 'quit', 'exit') {
+        Write-Host 'The Azure sign-in ends when this PowerShell process exits. If you ran this script in an existing window, close it.'
+        break
+    }
     try {
         switch ($choice) {
             '1' { Show-Table 'Subscriptions' @(Get-AzReadOnlySubscription) Name, Id, State, HomeTenantId, Selected }
@@ -196,7 +208,7 @@ while ($true) {
                 $n = Get-AzReadOnlyNetwork
                 Show-Table 'Virtual networks' $n.VirtualNetworks
                 Show-Table 'Subnets' $n.Subnets
-                Show-Table 'Network security groups (OpenToInternet: inbound rules allowing any internet source)' $n.SecurityGroups
+                Show-Table 'Network security groups (OpenToInternet: inbound Allow rules from any internet source; priority and Deny rules not evaluated)' $n.SecurityGroups
             }
             '10' { Show-SessionSummary }
             default { Write-Host 'Choose 1-10 or Q.' }

@@ -117,8 +117,10 @@ cloudwright version
 M365 mutation scripts refuse instead of running their legacy dry-run workflows.
 
 The Azure read-only console runs only an allowlist of read commands through one checked
-gateway, keeps its sign-in in that PowerShell process, and verifies the tenant and
-subscription before every report. See [its README](azure/readonly/README.md).
+gateway, refuses Compute, Network and AVD reads unless their resource provider is already
+registered (Az would otherwise register it), keeps Az's sign-in state in that PowerShell
+process, and verifies the tenant and subscription before every report. On Windows the
+sign-in broker still remembers the account. See [its README](azure/readonly/README.md).
 Legacy Azure entry points refuse execution even when called directly, and their modules
 refuse import. Each block sets its own error preference before refusing; the tested settings and
 runtime limits are documented in [SAFETY.md](docs/SAFETY.md). Legacy bodies remain for review. Bicep and

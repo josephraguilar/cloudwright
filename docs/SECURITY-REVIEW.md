@@ -2,8 +2,8 @@
 
 Date: 2026-11-03. Original baseline: `fbb7f367e129d363f6e609680be204703c22cf0a`.
 Candidate: version 0.3.0 on `safety/azure-read-only`, which adds the Azure/AVD read-only
-console to the 0.2.2 candidate `703168b` on `safety/read-only-audit`. The 0.3.0 addition has
-not yet had an independent review; see [its section](#030-azureavd-read-only-console).
+console to the 0.2.2 candidate `703168b` on `safety/read-only-audit`. See
+[its section](#030-azureavd-read-only-console) for its independent review and fixes.
 
 ## Decision and scope
 
@@ -131,37 +131,61 @@ The owner asked for a read-only Azure/AVD version after 0.2.2. It is new code in
 keep their blocks and their unchanged refusal tests; the new code never imports them.
 
 - **Allowlist and gateway.** 16 Az commands with their expected module and exact parameter
-  names. Everything else, including abbreviations, aliases and common parameters, is
-  refused before command lookup. Get commands that return secrets are excluded, and
-  `Get-AzVM -UserData` is not admitted. Reports return projected fields only.
+  names, compared ordinally. Everything else, including abbreviations, aliases, look-alike
+  characters and common parameters, is refused before command lookup; the resolved command
+  must be the named one from that module, and the gateway's built-ins are module-qualified.
+  Get commands that return secrets are excluded, and `Get-AzVM -UserData` is not admitted.
+  Reports return projected fields only. Every refusal is followed by `return`.
+- **Provider-registration guard.** Az.Accounts registers a resource provider and retries when
+  ARM answers "not registered to use namespace", even for a Get, under an account with
+  `*/register/action`. Before any Compute, Network or AVD command the gateway reads that
+  provider's registration state (once per report) and refuses unless it is `Registered`.
 - **Process-only sign-in.** `Disable-AzContextAutosave`, `Connect-AzAccount` and
-  `Set-AzContext` are pinned to `-Scope Process`, with `-WhatIf/-Confirm` forced off where
-  supported. Sign-in is refused unless Az reports process mode.
+  `Set-AzContext` are pinned to `-Scope Process`; those three and `Invoke-AzRestMethod` pin
+  `-WhatIf/-Confirm` off. Sign-in is refused unless Az reports process mode. On Windows the
+  WAM broker still remembers the account.
 - **Target verification.** Tenant and subscription are GUIDs. After sign-in, the active
   context must be the account that just signed in, in the requested tenant and subscription;
   each report re-checks tenant, account and subscription and refuses on drift. AVD calls also
-  pass the verified subscription explicitly.
-- **One REST call.** `Invoke-AzRestMethod` is pinned to GET of the selected subscription's
-  own `Microsoft.Authorization/permissions` path. Its result warns when the account could
-  change resources; it does not reduce those permissions.
+  pass the verified subscription explicitly. Session hosts join only to Azure VMs in that
+  subscription.
+- **REST checks only.** `Invoke-AzRestMethod` is pinned to GET of four exact paths: the
+  account's own `Microsoft.Authorization/permissions` and three providers' registration
+  state. The permission summary flags any action or data action beyond reading.
 
-Evidence (local, 2026-11-04): the Azure suite adds 70 tests against fake Az modules on disk.
-A source parse admits only reviewed built-ins, the module's own functions and one dynamic
-invocation (the gateway's), requires a literal allowlisted name at every gateway call, and
-rejects locals spelled like parameters. That last rule exists because the first draft had a
-real bug: a local `$subscriptionId` silently replaced the `-SubscriptionId` parameter, which
-disabled the subscription-mismatch refusal. The test caught it. Fake write commands fail the
-test if reached. The root refusal matrix adds gateway command, parameter, REST-path and
-changed-context refusals under eight error-preference settings (default, common, global and wildcard defaults). Every allowlisted
-command and parameter was checked against the current real Az modules (Az.Accounts 5.5.4,
-Az.Compute 11.11.0, Az.DesktopVirtualization 6.0.0, Az.Network 8.4.0, Az.Resources 10.2.2).
-With those modules and no network, the gateway disabled autosave for the process (Az
-reported no cache file) and left the saved Az settings unchanged.
+### Independent review r1 and dispositions
 
-Limits: no live tenant has been read; real sign-in, WAM, Lighthouse-delegated subscriptions
-and large estates are unverified. The Windows desktop interface stays disabled. This guard
-cannot constrain other code in the same PowerShell session. **Independent review of this
-addition is pending; do not publish 0.3.0 before it.**
+Opus 5.5 at max effort reviewed `e286ad0` (report:
+`.handoffs/cloudwright/opus-azure-readonly-review-r1.md` in the operator workspace). It found
+no unlisted command, parameter or REST path, no Scope/Method widening, no secret output and
+no legacy routing across 154 fresh-process probes, and confirmed process-only autosave with
+the real Az.Accounts offline. It rejected publication for AR1 and AR2:
+
+| Finding | Disposition |
+| --- | --- |
+| AR1 high: allowlisted Gets can register resource providers under Owner/Contributor | Gateway provider-registration guard above. Tests: fake NotRegistered/Registering states for all three namespaces must refuse with no list call; a failed state read fails closed; a refusal-matrix case requires the refusal under eight error settings. Docs no longer say "changes nothing" without qualification. Live confirmation of ARM's response still needs a disposable subscription. |
+| AR2 medium: access summary called write-capable roles "read-only" | Any non-read action or data action not excluded by its own set counts; an unread page makes the result "not fully checked". Green "read-only" removed. Tests cover Storage Account Contributor, Key Vault Contributor, Storage Blob Data Owner/Reader, VM Administrator Login, exclusions and paging. |
+| AR3 medium: session hosts joined to same-named VMs in the selected subscription; Arc hosts called orphaned | Join only `Microsoft.Compute/virtualMachines` in the selected subscription; others show `other subscription` or `not an Azure VM`, never orphaned, and do not trigger "no host running". The fake `Get-AzVM` now errors on a missing resource group like the real one. |
+| AR4 low: static rules and fakes proved less than claimed | Type and method allowlists; parameter-shadow rule covers typed, multiple, foreach, scriptblock and `-OutVariable` targets; account-drift, other-tenant default and unfiltered-list tests; metadata test checks call-shape parameter-set binding and ShouldProcess pins, and CI now saves current Az modules for it outside `PSModulePath`. The reviewer's mutants M1-M4, which passed every test, now fail; M5 and M7 are now also caught by the static rule. Ten further mutants of the fixes fail too. |
+| AR5 low: persistence overstated on Windows; direct script use leaves a context | Docs describe WAM and recommend the launcher or a fresh process; the console says on quit that the sign-in lasts until the process exits. |
+| AR6 low: same-session hardening | Module-qualified built-ins, post-lookup name/module check, explicit WhatIf/Confirm pins, `throw; return`, ordinal comparisons. Code planted inside the module's scope remains outside the boundary. |
+| AR7 low: failed switch kept the new name | Name and owning tenant are restored with the ID. |
+| AR8 low: misleading heuristics | "No host running" needs every power state known; empty status reads "unknown"; `::/0` counts as internet; OpenToInternet is labeled as not evaluating priority or Deny; unexpected permission bodies report "not checked". |
+| AR9 info: Lighthouse | The session summary shows the owning tenant of a delegated subscription. |
+| AR10 info: stale bootstrap file list | The bootstrap requires `azure/readonly/Start-AzureReadOnly.ps1`. |
+| AR11 info: matrix/CI coverage | Unchanged: wildcard-default vectors do not discriminate for module-scope calls (as R5-3); read-only tests run in the Ubuntu azure job only. |
+
+The reviewer said a focused delta check is enough after these fixes unless the gateway design
+changes broadly.
+
+Local evidence after the fixes (PowerShell 7.6.9, no network): Azure **350** passed with the
+current real Az modules available to the metadata test (349 and 1 skipped without them),
+root **1,614** (including 40 `AzureRead*` fresh-process refusal cases), Learn **137**, M365
+**504**; PSScriptAnalyzer reports no findings across 424 PowerShell files.
+
+Limits: no live tenant has been read; real sign-in, WAM, Lighthouse, ARM's response for the
+AR1 trigger and large estates are unverified. The Windows desktop interface stays disabled.
+This guard cannot constrain other code in the same PowerShell session.
 
 ## Other findings that must remain blocked or be fixed before writes return
 

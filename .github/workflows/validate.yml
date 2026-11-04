@@ -31,6 +31,13 @@ jobs:
         run: |
           Install-Module Pester -RequiredVersion 5.7.1 -Force -Scope CurrentUser -SkipPublisherCheck
           Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Force -Scope CurrentUser
+          if ('${{ matrix.area }}' -eq 'azure') {
+            # Current Az modules for the read-only metadata test only. Saved outside
+            # PSModulePath: the legacy Azure tests assume Az is not installed.
+            $az = Join-Path $env:RUNNER_TEMP 'az-modules'
+            Save-Module Az.Accounts, Az.Resources, Az.Compute, Az.Network, Az.DesktopVirtualization -Path $az -Repository PSGallery -Force
+            "CLOUDWRIGHT_AZ_MODULES=$az" | Add-Content $env:GITHUB_ENV
+          }
       - name: Analyze PowerShell
         run: |
           Import-Module PSScriptAnalyzer -RequiredVersion 1.25.0

@@ -1,7 +1,8 @@
 # Azure read-only mode
 
 Part of [Cloudwright](../../README.md). `cloudwright azure` opens this console. It reads
-Azure and Azure Virtual Desktop (AVD) and changes nothing. The legacy administration
+Azure and Azure Virtual Desktop (AVD) and is designed to change nothing; see the
+provider-registration guard below for the one way Az itself could otherwise write. The legacy administration
 scripts, modules, desktop interface and runbook under `../scripts` and `../runbooks` stay
 blocked; this folder does not load them.
 
@@ -36,44 +37,73 @@ tenant, asks you to pick one otherwise, and option 2 switches later.
 The health check reports a **Problem** for a host users cannot reach (any status other
 than Available, Shutdown or Upgrading), failed health checks, a failed agent update, a
 session host whose VM no longer exists, a pool with no application group, and a pool where
-no host is running while Start VM On Connect is off. It reports a **Warning** for drain mode,
-an app group no workspace publishes, a pool with no hosts, and VMs it could not read.
+no host is running while Start VM On Connect is off (only when every host's power state is
+known). It reports a **Warning** for drain mode, an app group no workspace publishes, a pool
+with no hosts, and VMs it could not read. Only Azure VMs in the selected subscription are
+joined to their session hosts; others show `other subscription` or `not an Azure VM` (for
+example Azure Local) instead of a power state, and are never called orphaned. These are
+pointers for an operator, not a full health evaluation. The network report's
+`OpenToInternet` column lists inbound Allow rules from any internet source; it does not
+apply rule priority or Deny rules.
 
 ## Safety boundary
 
 - **One gateway, one allowlist.** Every Azure call names one of 16 commands in
   `AzureReadOnly.psm1` and goes through `Invoke-AzReadCommand`. The command must come from
-  its expected Az module and may receive only its listed parameters; abbreviations and
-  aliases are refused. Anything else is refused before PowerShell even looks the command up.
+  its expected Az module and may receive only its listed parameters; names compare exactly
+  and ordinally, so abbreviations, aliases and look-alike characters are refused. Anything
+  else is refused before PowerShell looks the command up, and the resolved command must be
+  the named one from that module.
+- **No provider registration.** Az.Accounts registers a resource provider and retries when
+  Azure answers "not registered to use namespace", even for a Get, if the account has
+  `*/register/action` (Owner and Contributor do). That would be an Azure write. Before any
+  Compute, Network or AVD command, the gateway reads that provider's registration state and
+  refuses unless it is `Registered` ("Microsoft.Compute is not registered in this
+  subscription, so it has nothing to read"). The other commands reach providers that are
+  always registered (Resources, Authorization) or tenant-level endpoints.
 - **Get is not enough.** The list excludes Get commands that return keys, tokens, run-command
   output or VM user data, and host pools' registration tokens are never shown. Reports
   return only the fields they display.
-- **Sign-in stays in this process.** Context autosave is disabled for the process before
-  signing in, and the sign-in, subscription switch and autosave change are pinned to
+- **Az keeps this sign-in in the process.** Context autosave is disabled for the process
+  before signing in, and the sign-in, subscription switch and autosave change are pinned to
   `-Scope Process`. The console refuses to sign in unless Az confirms process mode, in which
-  Az reports no context or token cache file. Your saved Az settings are not changed, and a
-  later PowerShell window cannot reuse this sign-in through Az.
+  Az keeps its context and token cache in memory only. Your saved Az settings are not
+  changed. **On Windows, Az signs in through the Windows sign-in broker (WAM) by default,
+  which remembers the account and can sign it in again later without a password**;
+  `-DeviceCode` does not use WAM. Run the console through `cloudwright azure`, which uses a
+  fresh PowerShell process that exits on Q. Running the script directly in an existing
+  window leaves the signed-in context there until you close it.
 - **The target is verified.** The tenant and subscription must be GUIDs. After sign-in the
   active context must be the account that just signed in, in the requested tenant and
   subscription. Every report checks that again first and refuses if the context changed.
-- **The only REST call is a permission check.** `Invoke-AzRestMethod` is pinned to GET of
-  the selected subscription's own `Microsoft.Authorization/permissions` path.
+- **The only REST calls are checks.** `Invoke-AzRestMethod` is pinned to GET of four exact
+  paths in the selected subscription: the account's own `Microsoft.Authorization/permissions`
+  and the registration state of Microsoft.Compute, Microsoft.Network and
+  Microsoft.DesktopVirtualization.
 
 ## Limits
 
-Cloudwright only reads, but **it does not reduce your account's Azure permissions.** The
-access summary tells you when the account could change resources; for routine inspection
-use an account with the **Reader** role. That summary covers subscription scope only:
-resource-group and resource roles can grant more. Reports can show sensitive data such as
-user names and network layout.
+Cloudwright only reads, but **it does not reduce your account's Azure permissions.** For
+routine inspection use an account with the **Reader** role. The access summary flags any
+permission at subscription scope beyond reading, including data-plane permissions such as
+blob or VM-login access. It does not include resource-group, resource or deny
+assignments, and it says when Azure listed more permissions than it read; "no change or data
+permissions found" is not a guarantee. Reports can show sensitive data such as user names
+and network layout. A delegated (Lighthouse) subscription shows the tenant that owns it.
 
 Importing Az.Accounts writes its own settings files under `~/.Azure`. Az's telemetry and
 the Windows sign-in broker (WAM), which remembers the Windows account you pick, follow
 their own settings. Contexts saved by earlier
 sessions are loaded when Az.Accounts loads; this mode replaces the active one with a fresh
-sign-in and does not use or delete the saved ones. This is an application guard, not a
-sandbox: it cannot constrain other code running in the same PowerShell session.
+sign-in and does not use or delete the saved ones. The first Azure PowerShell sign-in in a
+tenant that has never used it may add Azure PowerShell's service principal to that tenant;
+that is Entra's behavior, outside Cloudwright's control, and is unverified here. This is an
+application guard, not a sandbox: it cannot constrain other code running in the same
+PowerShell session.
 
-Tests run against fake Az modules (`../tests/ReadOnly.Tests.ps1`). No live tenant has been
-read with this mode yet. Validate it with a Reader account in a test subscription before
-relying on it. Status: Untested.
+Tests run against fake Az modules (`../tests/ReadOnly.Tests.ps1`), and a metadata test
+checks every allowlisted command, parameter and call shape against the current real Az
+modules. No live tenant has been read with this mode yet. Before relying on it, validate it
+in a disposable subscription with a Reader account and, separately, a Contributor account:
+confirm in the Activity Log that no provider is registered when one is unregistered, and
+check WAM behavior on Windows. Status: Untested.

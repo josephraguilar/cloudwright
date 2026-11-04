@@ -11,6 +11,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'   # module functions do not inherit the caller's value
 $script:Session = $null
+$script:ProviderState = @{}   # registration state per namespace, cleared at the start of every report
 $script:GuidPattern = '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$'
 $script:RequiredModules = @('Az.Accounts', 'Az.Resources', 'Az.Compute', 'Az.Network', 'Az.DesktopVirtualization')
 #endregion
@@ -24,26 +25,38 @@ $script:RequiredModules = @('Az.Accounts', 'Az.Resources', 'Az.Compute', 'Az.Net
 #          explicit list keeps every reachable call reviewable.
 #   GOTCHA The session commands change only this PowerShell process's sign-in
 #          state. Scope is pinned to Process so nothing is saved for later sessions.
-#          Invoke-AzRestMethod is pinned to GET on one path: the caller's own
-#          permissions in the selected subscription.
+#          Invoke-AzRestMethod is pinned to GET on a few exact paths: the caller's
+#          own permissions and three providers' registration state.
+#          Provider: Az.Accounts registers a resource provider and retries when ARM
+#          answers "not registered to use namespace", and a Get is enough to
+#          trigger it under an Owner or Contributor account. That is an Azure
+#          write, so the gateway reads the namespace's registration state first
+#          and refuses the call unless it is Registered. The other commands reach
+#          providers that are always registered or tenant-level endpoints.
+$script:ShouldProcessOff = @{ WhatIf = $false; Confirm = $false }
 $script:Commands = @{
     'Get-AzContext'              = @{ Module = 'Az.Accounts'; Parameters = @() }
-    'Disable-AzContextAutosave'  = @{ Module = 'Az.Accounts'; Parameters = @(); Pinned = @{ Scope = 'Process' } }
-    'Connect-AzAccount'          = @{ Module = 'Az.Accounts'; Parameters = @('Tenant', 'Subscription', 'UseDeviceAuthentication'); Pinned = @{ Scope = 'Process' } }
-    'Set-AzContext'              = @{ Module = 'Az.Accounts'; Parameters = @('Tenant', 'Subscription'); Pinned = @{ Scope = 'Process' } }
+    'Disable-AzContextAutosave'  = @{ Module = 'Az.Accounts'; Parameters = @(); Pinned = @{ Scope = 'Process' } + $script:ShouldProcessOff }
+    'Connect-AzAccount'          = @{ Module = 'Az.Accounts'; Parameters = @('Tenant', 'Subscription', 'UseDeviceAuthentication'); Pinned = @{ Scope = 'Process' } + $script:ShouldProcessOff }
+    'Set-AzContext'              = @{ Module = 'Az.Accounts'; Parameters = @('Tenant', 'Subscription'); Pinned = @{ Scope = 'Process' } + $script:ShouldProcessOff }
     'Get-AzSubscription'         = @{ Module = 'Az.Accounts'; Parameters = @('TenantId') }
-    'Invoke-AzRestMethod'        = @{ Module = 'Az.Accounts'; Parameters = @('Path'); Pinned = @{ Method = 'GET' }
-                                     Path = '/subscriptions/{subscription}/providers/Microsoft.Authorization/permissions?api-version=2022-04-01' }
+    'Invoke-AzRestMethod'        = @{ Module = 'Az.Accounts'; Parameters = @('Path'); Pinned = @{ Method = 'GET' } + $script:ShouldProcessOff
+                                     Paths = @(
+                                         '/subscriptions/{subscription}/providers/Microsoft.Authorization/permissions?api-version=2022-04-01'
+                                         '/subscriptions/{subscription}/providers/Microsoft.Compute?api-version=2021-04-01'
+                                         '/subscriptions/{subscription}/providers/Microsoft.Network?api-version=2021-04-01'
+                                         '/subscriptions/{subscription}/providers/Microsoft.DesktopVirtualization?api-version=2021-04-01'
+                                     ) }
     'Get-AzResourceGroup'        = @{ Module = 'Az.Resources'; Parameters = @() }
-    'Get-AzVM'                   = @{ Module = 'Az.Compute'; Parameters = @('ResourceGroupName', 'Status') }
-    'Get-AzVirtualNetwork'       = @{ Module = 'Az.Network'; Parameters = @() }
-    'Get-AzNetworkSecurityGroup' = @{ Module = 'Az.Network'; Parameters = @() }
-    'Get-AzWvdHostPool'          = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId') }
-    'Get-AzWvdSessionHost'       = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId', 'ResourceGroupName', 'HostPoolName') }
-    'Get-AzWvdUserSession'       = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId', 'ResourceGroupName', 'HostPoolName') }
-    'Get-AzWvdApplicationGroup'  = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId') }
-    'Get-AzWvdWorkspace'         = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId') }
-    'Get-AzWvdScalingPlan'       = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId') }
+    'Get-AzVM'                   = @{ Module = 'Az.Compute'; Parameters = @('ResourceGroupName', 'Status'); Provider = 'Microsoft.Compute' }
+    'Get-AzVirtualNetwork'       = @{ Module = 'Az.Network'; Parameters = @(); Provider = 'Microsoft.Network' }
+    'Get-AzNetworkSecurityGroup' = @{ Module = 'Az.Network'; Parameters = @(); Provider = 'Microsoft.Network' }
+    'Get-AzWvdHostPool'          = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId'); Provider = 'Microsoft.DesktopVirtualization' }
+    'Get-AzWvdSessionHost'       = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId', 'ResourceGroupName', 'HostPoolName'); Provider = 'Microsoft.DesktopVirtualization' }
+    'Get-AzWvdUserSession'       = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId', 'ResourceGroupName', 'HostPoolName'); Provider = 'Microsoft.DesktopVirtualization' }
+    'Get-AzWvdApplicationGroup'  = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId'); Provider = 'Microsoft.DesktopVirtualization' }
+    'Get-AzWvdWorkspace'         = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId'); Provider = 'Microsoft.DesktopVirtualization' }
+    'Get-AzWvdScalingPlan'       = @{ Module = 'Az.DesktopVirtualization'; Parameters = @('SubscriptionId'); Provider = 'Microsoft.DesktopVirtualization' }
 }
 
 function Get-AzReadCommandPolicy {
@@ -60,7 +73,8 @@ function Get-AzReadCommandPolicy {
             Module     = $spec.Module
             Parameters = @($spec.Parameters)
             Pinned     = $(if ($spec.ContainsKey('Pinned')) { @{} + $spec.Pinned } else { @{} })
-            Path       = $(if ($spec.ContainsKey('Path')) { $spec.Path } else { $null })
+            Paths      = $(if ($spec.ContainsKey('Paths')) { @($spec.Paths) } else { @() })
+            Provider   = $(if ($spec.ContainsKey('Provider')) { $spec.Provider } else { $null })
         }
     }
 }
@@ -71,10 +85,13 @@ function Get-AzReadCommandPolicy {
 #          parameters. Everything else is refused before any command is resolved.
 #   WHY    One choke point is easy to review and to test. Pinned values are added
 #          here, so a caller cannot widen Scope or Method.
-#   GOTCHA The refusals set their own error preference first. -ErrorAction or a
-#          caller's preference must not turn a refusal into a warning that lets the
-#          next line run. Parameter names must match exactly: PowerShell would
-#          otherwise accept an abbreviation or an alias for a listed name.
+#   GOTCHA The refusals set their own error preference first, and every refusal is
+#          followed by return. -ErrorAction or a caller's preference must not turn
+#          a refusal into a warning that lets the next line run. Names compare
+#          ordinally and exactly: PowerShell would otherwise accept an abbreviation
+#          or alias for a listed parameter, and culture-aware comparison ignores
+#          some invisible characters. Built-ins are module-qualified so a
+#          same-named function in the session cannot stand in for them.
 function Invoke-AzReadCommand {
     <#
     .SYNOPSIS
@@ -90,29 +107,59 @@ function Invoke-AzReadCommand {
         [Parameter(Position = 1)] [hashtable]$Parameters = @{}
     )
     $ErrorActionPreference = 'Stop'
-    if (-not $script:Commands.ContainsKey($Name)) {
-        throw "Azure read-only mode refuses '$Name': it is not an allowlisted read command."
+    $listed = @($script:Commands.Keys | Microsoft.PowerShell.Core\Where-Object { [string]::Equals($_, $Name, [StringComparison]::OrdinalIgnoreCase) })
+    if ($listed.Count -ne 1) {
+        throw "Azure read-only mode refuses '$Name': it is not an allowlisted read command."; return
     }
-    $spec = $script:Commands[$Name]
+    $canonical = $listed[0]
+    $spec = $script:Commands[$canonical]
     foreach ($key in @($Parameters.Keys)) {
-        if ("$key" -notin $spec.Parameters) { throw "Azure read-only mode refuses parameter -$key for $Name." }
-    }
-    if ($spec.ContainsKey('Path')) {
-        $expected = if ($script:Session -and $script:Session.SubscriptionId) { $spec.Path.Replace('{subscription}', $script:Session.SubscriptionId) }
-        if (-not $expected -or "$($Parameters['Path'])" -cne $expected) {
-            throw "Azure read-only mode refuses this $Name request: only the selected subscription's permission check is allowed."
+        if (@($spec.Parameters | Microsoft.PowerShell.Core\Where-Object { [string]::Equals($_, "$key", [StringComparison]::OrdinalIgnoreCase) }).Count -ne 1) {
+            throw "Azure read-only mode refuses parameter -$key for $canonical."; return
         }
     }
-    $command = @(Get-Command -Name $Name -Module $spec.Module -CommandType Cmdlet, Function -ErrorAction SilentlyContinue) | Select-Object -First 1
+    if ($spec.ContainsKey('Paths')) {
+        $subscription = if ($script:Session) { "$($script:Session.SubscriptionId)" } else { '' }
+        $path = "$($Parameters['Path'])"
+        $allowed = @(if ($subscription) { $spec.Paths | Microsoft.PowerShell.Core\Where-Object { [string]::Equals($_.Replace('{subscription}', $subscription), $path, [StringComparison]::Ordinal) } })
+        if ($allowed.Count -ne 1) {
+            throw "Azure read-only mode refuses this $canonical request: only the selected subscription's permission and provider checks are allowed."; return
+        }
+    }
+    if ($spec.ContainsKey('Provider') -and -not (Test-AzReadOnlyProviderRegistered -Namespace $spec.Provider)) {
+        throw "$($spec.Provider) is not registered in this subscription, so it has nothing to read. Cloudwright does not register it."; return
+    }
+    $command = @(Microsoft.PowerShell.Core\Get-Command -Name $canonical -Module $spec.Module -CommandType Cmdlet, Function -ErrorAction SilentlyContinue) |
+        Microsoft.PowerShell.Utility\Select-Object -First 1
     if (-not $command) {
-        if (Get-Module -ListAvailable -Name $spec.Module) { throw "$($spec.Module) is installed but $Name could not be loaded. Run Import-Module $($spec.Module) in a new PowerShell window to see why." }
-        throw "$($spec.Module) is not installed. Run: Install-Module $($spec.Module) -Scope CurrentUser"
+        if (Microsoft.PowerShell.Core\Get-Module -ListAvailable -Name $spec.Module) {
+            throw "$($spec.Module) is installed but $canonical could not be loaded. Run Import-Module $($spec.Module) in a new PowerShell window to see why."; return
+        }
+        throw "$($spec.Module) is not installed. Run: Install-Module $($spec.Module) -Scope CurrentUser"; return
+    }
+    if (-not [string]::Equals($command.Name, $canonical, [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals($command.ModuleName, $spec.Module, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Azure read-only mode refuses '$canonical': it resolved to $($command.ModuleName)\$($command.Name)."; return
     }
     $arguments = @{} + $Parameters
     if ($spec.ContainsKey('Pinned')) { foreach ($key in $spec.Pinned.Keys) { $arguments[$key] = $spec.Pinned[$key] } }
-    foreach ($key in 'WhatIf', 'Confirm') { if ($command.Parameters.ContainsKey($key)) { $arguments[$key] = $false } }
     $arguments.ErrorAction = 'Stop'
     & $command @arguments
+}
+
+function Test-AzReadOnlyProviderRegistered {
+    # One GET per namespace per report: Assert-AzReadOnlyContext clears the cache.
+    # Anything but Registered (NotRegistered, Registering, an error) means no read.
+    param([string]$Namespace)
+    $ErrorActionPreference = 'Stop'
+    if (-not $script:ProviderState.ContainsKey($Namespace)) {
+        if (-not $script:Session -or -not $script:Session.SubscriptionId) { return $false }
+        $response = Invoke-AzReadCommand 'Invoke-AzRestMethod' @{ Path = "/subscriptions/$($script:Session.SubscriptionId)/providers/${Namespace}?api-version=2021-04-01" }
+        $status = [int](Get-AzReadOnlyValue $response 'StatusCode' 0)
+        if ($status -ne 200) { throw "Could not check whether $Namespace is registered (HTTP $status), so it was not read."; return }
+        $script:ProviderState[$Namespace] = "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $response 'Content' '{}' | Microsoft.PowerShell.Utility\ConvertFrom-Json) 'registrationState')"
+    }
+    return [string]::Equals($script:ProviderState[$Namespace], 'Registered', [StringComparison]::Ordinal)
 }
 #endregion
 
@@ -136,10 +183,16 @@ function Split-AzReadOnlyResourceId {
     # /subscriptions/<sub>/resourceGroups/<rg>/providers/<namespace>/<type>/<name>
     param([string]$ResourceId)
     $parts = "$ResourceId" -split '/'
-    if ($parts.Count -ge 9 -and $parts[1] -eq 'subscriptions' -and $parts[3] -eq 'resourceGroups') {
-        return [pscustomobject]@{ SubscriptionId = $parts[2]; ResourceGroupName = $parts[4]; Name = $parts[8] }
+    if ($parts.Count -ge 9 -and $parts[1] -eq 'subscriptions' -and $parts[3] -eq 'resourceGroups' -and $parts[5] -eq 'providers') {
+        return [pscustomobject]@{ SubscriptionId = $parts[2]; ResourceGroupName = $parts[4]; Type = "$($parts[6])/$($parts[7])"; Name = $parts[8] }
     }
-    return [pscustomobject]@{ SubscriptionId = $null; ResourceGroupName = $null; Name = $null }
+    return [pscustomobject]@{ SubscriptionId = $null; ResourceGroupName = $null; Type = $null; Name = $null }
+}
+
+function Test-AzReadOnlySame {
+    # Ordinal and case-insensitive, for GUIDs, names and account IDs. Never culture-aware.
+    param([string]$Left, [string]$Right)
+    return [string]::Equals($Left, $Right, [StringComparison]::OrdinalIgnoreCase)
 }
 
 function Get-AzReadOnlyMissingModule {
@@ -160,8 +213,9 @@ function Get-AzReadOnlyMissingModule {
 #   WHAT   Sign in to one tenant for this process only, verify where that landed,
 #          and re-verify it before every report.
 #   WHY    Reading the wrong subscription is the read-only version of the classic
-#          Azure mistake. Process scope keeps the token out of the saved profile, so
-#          a later PowerShell session cannot reuse it by accident.
+#          Azure mistake. Process scope keeps Az's context and token cache out of
+#          the saved profile, so a later PowerShell session cannot reuse them by
+#          accident. On Windows the sign-in broker (WAM) still remembers the account.
 #   GOTCHA Az.Accounts loads saved contexts when it is imported. A fresh sign-in
 #          replaces the default context, and the checks below compare the context
 #          that Connect-AzAccount returned with the one Azure commands will use.
@@ -184,6 +238,7 @@ function Connect-AzReadOnly {
     )
     $ErrorActionPreference = 'Stop'
     $script:Session = $null
+    $script:ProviderState = @{}
 
     #region 4a. Keep the sign-in in memory -----------------------------------
     $autosave = Invoke-AzReadCommand 'Disable-AzContextAutosave'
@@ -202,34 +257,36 @@ function Connect-AzReadOnly {
     $account = Get-AzReadOnlyValue $signedIn 'Account'
     $accountId = "$(Get-AzReadOnlyValue $account 'Id')"
     if (-not $signedIn -or -not $context -or -not $accountId -or
-        "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Tenant') 'Id')" -ne $TenantId -or
-        "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $signedIn 'Tenant') 'Id')" -ne $TenantId -or
-        "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Account') 'Id')" -ne $accountId) {
+        -not (Test-AzReadOnlySame "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Tenant') 'Id')" $TenantId) -or
+        -not (Test-AzReadOnlySame "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $signedIn 'Tenant') 'Id')" $TenantId) -or
+        -not (Test-AzReadOnlySame "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Account') 'Id')" $accountId)) {
         throw "Azure read-only mode refuses this sign-in: the active context is not the account that just signed in to tenant $TenantId."
     }
     if ("$(Get-AzReadOnlyValue $account 'Type')" -ne 'User') {
         throw 'Azure read-only mode supports interactive user sign-in only.'
     }
     $script:Session = [pscustomobject]@{
-        TenantId = $TenantId; AccountId = $accountId; SubscriptionId = $null; SubscriptionName = $null
+        TenantId = $TenantId; AccountId = $accountId; SubscriptionId = $null; SubscriptionName = $null; SubscriptionHomeTenantId = $null
     }
     #endregion
 
     #region 4c. Adopt the subscription ---------------------------------------
     #   WHY    A requested subscription must be exactly what Azure selected. Without
-    #          one, the sign-in's default is kept only if it belongs to this tenant.
+    #          one, the sign-in's default is kept only if it is listed under this
+    #          tenant. A Lighthouse-delegated subscription is; its home tenant differs.
     #   GOTCHA PowerShell variable names ignore case: a local named like a
     #          parameter replaces it. The tests reject that pattern.
     $subscription = Get-AzReadOnlyValue $context 'Subscription'
     $selected = "$(Get-AzReadOnlyValue $subscription 'Id')"
-    $owner = "$(Get-AzReadOnlyValue $subscription 'TenantId', 'HomeTenantId' $TenantId)"
-    if ($SubscriptionId -and $selected -ne $SubscriptionId) {
+    $accessTenant = "$(Get-AzReadOnlyValue $subscription 'TenantId' $TenantId)"
+    if ($SubscriptionId -and -not (Test-AzReadOnlySame $selected $SubscriptionId)) {
         $script:Session = $null
         throw "Azure read-only mode refuses this sign-in: Azure selected subscription '$selected', not $SubscriptionId."
     }
-    if ($selected -match $script:GuidPattern -and $owner -eq $TenantId) {
+    if ($selected -match $script:GuidPattern -and (Test-AzReadOnlySame $accessTenant $TenantId)) {
         $script:Session.SubscriptionId = $selected
         $script:Session.SubscriptionName = "$(Get-AzReadOnlyValue $subscription 'Name')"
+        $script:Session.SubscriptionHomeTenantId = "$(Get-AzReadOnlyValue $subscription 'HomeTenantId' $TenantId)"
     }
     #endregion
     return Get-AzReadOnlySession
@@ -246,6 +303,7 @@ function Get-AzReadOnlySession {
     [pscustomobject]@{
         TenantId = $script:Session.TenantId; AccountId = $script:Session.AccountId
         SubscriptionId = $script:Session.SubscriptionId; SubscriptionName = $script:Session.SubscriptionName
+        SubscriptionHomeTenantId = $script:Session.SubscriptionHomeTenantId
     }
 }
 
@@ -257,14 +315,15 @@ function Assert-AzReadOnlyContext {
     [CmdletBinding()]
     param([Parameter()] [switch]$TenantOnly)
     $ErrorActionPreference = 'Stop'
+    $script:ProviderState = @{}
     if (-not $script:Session) { throw 'Azure read-only mode: sign in first.' }
     if (-not $TenantOnly -and -not $script:Session.SubscriptionId) { throw 'Azure read-only mode: choose a subscription first.' }
     $context = Invoke-AzReadCommand 'Get-AzContext'
     $same = $context -and
-        "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Tenant') 'Id')" -eq $script:Session.TenantId -and
-        "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Account') 'Id')" -eq $script:Session.AccountId
+        (Test-AzReadOnlySame "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Tenant') 'Id')" $script:Session.TenantId) -and
+        (Test-AzReadOnlySame "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Account') 'Id')" $script:Session.AccountId)
     if ($same -and -not $TenantOnly) {
-        $same = "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Subscription') 'Id')" -eq $script:Session.SubscriptionId
+        $same = Test-AzReadOnlySame "$(Get-AzReadOnlyValue (Get-AzReadOnlyValue $context 'Subscription') 'Id')" $script:Session.SubscriptionId
     }
     if (-not $same) {
         throw 'Azure read-only mode refuses to continue: the Azure context changed after sign-in. Restart cloudwright azure.'
@@ -284,14 +343,14 @@ function Get-AzReadOnlySubscription {
     foreach ($s in @(Invoke-AzReadCommand 'Get-AzSubscription' @{ TenantId = $tenant }) | Sort-Object Name) {
         # Lighthouse-delegated subscriptions are listed under the signed-in tenant;
         # HomeTenantId shows which directory actually owns them.
-        if ("$(Get-AzReadOnlyValue $s 'TenantId' $tenant)" -ne $tenant) { continue }
+        if (-not (Test-AzReadOnlySame "$(Get-AzReadOnlyValue $s 'TenantId' $tenant)" $tenant)) { continue }
         $id = "$(Get-AzReadOnlyValue $s 'Id', 'SubscriptionId')"
         [pscustomobject]@{
             Name         = "$(Get-AzReadOnlyValue $s 'Name')"
             Id           = $id
             State        = "$(Get-AzReadOnlyValue $s 'State')"
             HomeTenantId = "$(Get-AzReadOnlyValue $s 'HomeTenantId' $tenant)"
-            Selected     = $id -eq $script:Session.SubscriptionId
+            Selected     = Test-AzReadOnlySame $id $script:Session.SubscriptionId
         }
     }
 }
@@ -307,14 +366,17 @@ function Select-AzReadOnlySubscription {
     [CmdletBinding()]
     param([Parameter(Mandatory)] [ValidatePattern('^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$')] [string]$SubscriptionId)
     $ErrorActionPreference = 'Stop'
-    $available = @(Get-AzReadOnlySubscription | Where-Object Id -eq $SubscriptionId)
+    $available = @(Get-AzReadOnlySubscription | Where-Object { Test-AzReadOnlySame $_.Id $SubscriptionId })
     if ($available.Count -ne 1) { throw "Subscription $SubscriptionId is not readable by this account in tenant $($script:Session.TenantId)." }
-    $previous = $script:Session.SubscriptionId
-    $null = Invoke-AzReadCommand 'Set-AzContext' @{ Tenant = $script:Session.TenantId; Subscription = $SubscriptionId }
-    $script:Session.SubscriptionId = $SubscriptionId
+    $previous = [pscustomobject]@{ Id = $script:Session.SubscriptionId; Name = $script:Session.SubscriptionName; Home = $script:Session.SubscriptionHomeTenantId }
+    $null = Invoke-AzReadCommand 'Set-AzContext' @{ Tenant = $script:Session.TenantId; Subscription = $available[0].Id }
+    $script:Session.SubscriptionId = $available[0].Id
     $script:Session.SubscriptionName = $available[0].Name
+    $script:Session.SubscriptionHomeTenantId = $available[0].HomeTenantId
     try { Assert-AzReadOnlyContext } catch {
-        $script:Session.SubscriptionId = $previous
+        $script:Session.SubscriptionId = $previous.Id
+        $script:Session.SubscriptionName = $previous.Name
+        $script:Session.SubscriptionHomeTenantId = $previous.Home
         throw
     }
     return Get-AzReadOnlySession
@@ -323,56 +385,60 @@ function Select-AzReadOnlySubscription {
 function Get-AzReadOnlyAccess {
     <#
     .SYNOPSIS
-        Whether the signed-in account could change resources in this subscription.
+        Whether the signed-in account has any permission beyond reading at subscription scope.
     .DESCRIPTION
         Reads the account's own effective permissions at subscription scope (the
-        portal's "Check access"), then tests sample change actions against them.
-        Cloudwright still only reads; this tells you how much the account could do
-        elsewhere. Resource-group and resource-level roles are not included.
+        portal's "Check access"). Any action that does not end in /read, and any
+        data action that does not, counts as a change permission unless the same
+        permission set's exclusions cover it. Cloudwright still only reads; this
+        tells you how much more the account could do. Resource-group, resource and
+        deny assignments are not included.
+    .OUTPUTS
+        Checked (the response was understood), Complete (every page was read),
+        CanChange ($true, $false, or $null when an unread page could hold more),
+        Examples (permission patterns that can change something), Note.
     #>
     [CmdletBinding()]
     param()
     $ErrorActionPreference = 'Stop'
     Assert-AzReadOnlyContext
     $path = "/subscriptions/$($script:Session.SubscriptionId)/providers/Microsoft.Authorization/permissions?api-version=2022-04-01"
+    $scope = 'Subscription scope only: resource-group, resource and deny assignments are not included.'
     $response = Invoke-AzReadCommand 'Invoke-AzRestMethod' @{ Path = $path }
     $status = [int](Get-AzReadOnlyValue $response 'StatusCode' 0)
-    if ($status -ne 200) {
-        return [pscustomobject]@{ Checked = $false; CanChange = $null; Examples = @(); Note = "The permission check returned HTTP $status." }
+    $body = $null
+    if ($status -eq 200) {
+        try { $body = Get-AzReadOnlyValue $response 'Content' '' | ConvertFrom-Json } catch { $body = $null }
     }
-    $permissions = @((Get-AzReadOnlyValue $response 'Content' '{}' | ConvertFrom-Json).value)
-    $samples = @(
-        'Microsoft.Compute/virtualMachines/write'
-        'Microsoft.Compute/virtualMachines/delete'
-        'Microsoft.Compute/virtualMachines/deallocate/action'
-        'Microsoft.Compute/virtualMachines/runCommand/action'
-        'Microsoft.DesktopVirtualization/hostpools/write'
-        'Microsoft.DesktopVirtualization/hostpools/sessionhosts/write'
-        'Microsoft.DesktopVirtualization/hostpools/sessionhosts/usersessions/delete'
-        'Microsoft.Network/networkSecurityGroups/securityRules/write'
-        'Microsoft.Resources/subscriptions/resourceGroups/delete'
-        'Microsoft.Authorization/roleAssignments/write'
-    )
-    $allowed = @($samples | Where-Object { Test-AzReadOnlyActionAllowed -Action $_ -Permissions $permissions })
+    if (-not $body -or -not $body.PSObject.Properties['value']) {
+        $note = if ($status -ne 200) { "The permission check returned HTTP $status." } else { 'The permission check returned an unexpected response.' }
+        return [pscustomobject]@{ Checked = $false; Complete = $false; CanChange = $null; Examples = @(); Note = $note }
+    }
+    $changes = @(@(foreach ($p in @($body.value)) {
+        foreach ($pattern in @(Get-AzReadOnlyValue $p 'actions' @())) {
+            if (Test-AzReadOnlyChangePattern -Pattern $pattern -Excluded @(Get-AzReadOnlyValue $p 'notActions' @())) { "$pattern" }
+        }
+        foreach ($pattern in @(Get-AzReadOnlyValue $p 'dataActions' @())) {
+            if (Test-AzReadOnlyChangePattern -Pattern $pattern -Excluded @(Get-AzReadOnlyValue $p 'notDataActions' @())) { "data: $pattern" }
+        }
+    }) | Sort-Object -Unique)
+    $complete = -not (Get-AzReadOnlyValue $body 'nextLink')
     [pscustomobject]@{
         Checked   = $true
-        CanChange = $allowed.Count -gt 0
-        Examples  = $allowed
-        Note      = 'Subscription scope only. Resource-group and resource roles can add more.'
+        Complete  = $complete
+        CanChange = $(if ($changes.Count) { $true } elseif ($complete) { $false } else { $null })
+        Examples  = @($changes)
+        Note      = $(if ($complete) { $scope } else { "More permissions were listed than one page; they were not read. $scope" })
     }
 }
 
-function Test-AzReadOnlyActionAllowed {
-    # RBAC rule: allowed when a permission set's actions match and none of that
-    # same set's notActions do. Azure's wildcards mean what -like means.
-    param([string]$Action, [object[]]$Permissions)
-    foreach ($p in $Permissions) {
-        $actions = @(Get-AzReadOnlyValue $p 'actions' @())
-        $notActions = @(Get-AzReadOnlyValue $p 'notActions' @())
-        if (@($actions | Where-Object { $Action -like $_ }).Count -gt 0 -and
-            @($notActions | Where-Object { $Action -like $_ }).Count -eq 0) { return $true }
-    }
-    return $false
+function Test-AzReadOnlyChangePattern {
+    # A pattern that only reads ends in /read. Anything else ('*', 'Microsoft.Storage/*',
+    # '.../action') can change something, unless one of the same permission set's
+    # exclusions covers the whole pattern. Azure's wildcards mean what -like means.
+    param([string]$Pattern, [string[]]$Excluded)
+    if ($Pattern -like '*/read') { return $false }
+    return @($Excluded | Where-Object { $Pattern -like $_ }).Count -eq 0
 }
 #endregion
 
@@ -508,13 +574,18 @@ function Get-AzReadOnlyAvdEnvironment {
 function Get-AzReadOnlyPoolDetail {
     # Session hosts of one pool joined to their VMs. One Get-AzVM -Status call per
     # resource group that holds hosts, so this stays cheap for big pools.
+    # GOTCHA Only Azure VMs in the selected subscription are joined. A host whose VM
+    #        is in another subscription, or an Azure Local/Arc machine, says so
+    #        instead: a same-named VM here is not its VM, and it is not orphaned.
     param($Pool, $Inventory)
     $rg = (Split-AzReadOnlyResourceId (Get-AzReadOnlyValue $Pool 'Id')).ResourceGroupName
     $name = "$(Get-AzReadOnlyValue $Pool 'Name')"
     $hosts = @(Invoke-AzReadCommand 'Get-AzWvdSessionHost' @{ SubscriptionId = $script:Session.SubscriptionId; ResourceGroupName = $rg; HostPoolName = $name })
     $vmByKey = @{}
     $unread = @{}
-    $groups = @($hosts | ForEach-Object { (Split-AzReadOnlyResourceId (Get-AzReadOnlyValue $_ 'ResourceId')).ResourceGroupName } | Where-Object { $_ } | Sort-Object -Unique)
+    $refs = @($hosts | ForEach-Object { Split-AzReadOnlyResourceId (Get-AzReadOnlyValue $_ 'ResourceId') })
+    $groups = @($refs | Where-Object { $_.ResourceGroupName -and (Test-AzReadOnlySame $_.SubscriptionId $script:Session.SubscriptionId) -and (Test-AzReadOnlySame $_.Type 'Microsoft.Compute/virtualMachines') } |
+        ForEach-Object ResourceGroupName | Sort-Object -Unique)
     foreach ($g in $groups) {
         try {
             foreach ($vm in @(Invoke-AzReadCommand 'Get-AzVM' @{ ResourceGroupName = $g; Status = $true })) {
@@ -524,9 +595,14 @@ function Get-AzReadOnlyPoolDetail {
     }
     $rows = @(foreach ($h in $hosts) {
         $ref = Split-AzReadOnlyResourceId (Get-AzReadOnlyValue $h 'ResourceId')
-        $vm = if ($ref.ResourceGroupName) { $vmByKey["$($ref.ResourceGroupName)/$($ref.Name)".ToLowerInvariant()] }
+        $local = $ref.ResourceGroupName -and (Test-AzReadOnlySame $ref.SubscriptionId $script:Session.SubscriptionId) -and
+            (Test-AzReadOnlySame $ref.Type 'Microsoft.Compute/virtualMachines')
+        $vm = if ($local) { $vmByKey["$($ref.ResourceGroupName)/$($ref.Name)".ToLowerInvariant()] }
         $power = if ($vm) { "$(Get-AzReadOnlyValue $vm 'PowerState')" -replace '^VM ', '' }
-            elseif (-not $ref.ResourceGroupName -or $unread.ContainsKey($ref.ResourceGroupName.ToLowerInvariant())) { 'unknown' }
+            elseif (-not $ref.ResourceGroupName) { 'unknown' }
+            elseif (-not (Test-AzReadOnlySame $ref.SubscriptionId $script:Session.SubscriptionId)) { 'other subscription' }
+            elseif (-not $local) { 'not an Azure VM' }
+            elseif ($unread.ContainsKey($ref.ResourceGroupName.ToLowerInvariant())) { 'unknown' }
             else { 'not found' }
         $checks = @(Get-AzReadOnlyValue $h 'HealthCheckResult', 'SessionHostHealthCheckResult' @())
         $failed = @($checks | Where-Object { "$(Get-AzReadOnlyValue $_ 'HealthCheckResult')" -eq 'HealthCheckFailed' } |
@@ -659,12 +735,14 @@ function Get-AzReadOnlyPoolFinding {
     foreach ($g in $Detail.AppGroups | Where-Object { @($_.Workspaces).Count -eq 0 }) {
         New-AzReadOnlyFinding 'Warning' $pool '' "Application group $($g.Name) is not in any workspace, so users do not see it."
     }
-    if ($Detail.Counts.Total -gt 0 -and $Detail.Counts.Running -eq 0 -and -not $Detail.Pool.StartVMOnConnect -and $Detail.UnreadVmGroups.Count -eq 0) {
+    # Only when every host's power state is known: unknown or unjoined hosts may be running.
+    $known = @($Detail.Hosts | Where-Object { $_.PowerState -notin 'unknown', 'other subscription', 'not an Azure VM' }).Count -eq $Detail.Counts.Total
+    if ($Detail.Counts.Total -gt 0 -and $Detail.Counts.Running -eq 0 -and -not $Detail.Pool.StartVMOnConnect -and $known) {
         New-AzReadOnlyFinding 'Problem' $pool '' 'No host is running and Start VM On Connect is off: users cannot connect until a host starts.'
     }
     foreach ($g in $Detail.UnreadVmGroups) { New-AzReadOnlyFinding 'Warning' $pool '' "Could not read VMs in resource group $g; power states are unknown." }
     foreach ($h in $Detail.Hosts) {
-        if ($h.Status -notin 'Available', 'Shutdown', 'Upgrading') { New-AzReadOnlyFinding 'Problem' $pool $h.Name "Status is $($h.Status)." }
+        if ($h.Status -notin 'Available', 'Shutdown', 'Upgrading') { New-AzReadOnlyFinding 'Problem' $pool $h.Name "Status is $(if ($h.Status) { $h.Status } else { 'unknown' })." }
         if ($h.PowerState -eq 'not found') { New-AzReadOnlyFinding 'Problem' $pool $h.Name 'Its VM was not found; the session host may be orphaned.' }
         if ($h.FailedChecks) { New-AzReadOnlyFinding 'Problem' $pool $h.Name "Failed health checks: $($h.FailedChecks)." }
         if ($h.UpdateState -eq 'Failed') { New-AzReadOnlyFinding 'Problem' $pool $h.Name 'The last agent update failed.' }
@@ -681,8 +759,10 @@ function New-AzReadOnlyFinding {
 #endregion
 
 #region 7. Networking ----------------------------------------------------------
-#   WHAT   Virtual networks, subnets with their NSGs, and NSGs with inbound rules
-#          open to the internet.
+#   WHAT   Virtual networks, subnets with their NSGs, and NSGs with inbound Allow
+#          rules from any internet source.
+#   GOTCHA OpenToInternet is a pointer, not an evaluation: it does not apply rule
+#          priority or Deny rules, and misses a source split into several ranges.
 #   WHY    "Which subnet are the hosts in, and is RDP open to the world" are the
 #          two network questions behind most AVD and server tickets.
 function Get-AzReadOnlyNetwork {
@@ -724,7 +804,7 @@ function Get-AzReadOnlyNetwork {
         $rules = @(Get-AzReadOnlyValue $n 'SecurityRules' @())
         $open = @($rules | Where-Object {
             "$(Get-AzReadOnlyValue $_ 'Direction')" -eq 'Inbound' -and "$(Get-AzReadOnlyValue $_ 'Access')" -eq 'Allow' -and
-            @(@(Get-AzReadOnlyValue $_ 'SourceAddressPrefix' @()) | Where-Object { "$_" -in '*', 'Internet', 'Any', '0.0.0.0/0' }).Count -gt 0
+            @(@(Get-AzReadOnlyValue $_ 'SourceAddressPrefix' @()) | Where-Object { "$_" -in '*', 'Internet', 'Any', '0.0.0.0/0', '::/0' }).Count -gt 0
         } | ForEach-Object { "$(Get-AzReadOnlyValue $_ 'Name') ($(Get-AzReadOnlyValue $_ 'Protocol') $(@(Get-AzReadOnlyValue $_ 'DestinationPortRange' @()) -join ','))" })
         [pscustomobject]@{
             Name              = "$(Get-AzReadOnlyValue $n 'Name')"

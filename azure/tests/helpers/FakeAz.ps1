@@ -37,10 +37,19 @@ function Set-AzContext {
     $global:FakeAz.Context = New-FakeAzContext -Tenant $Tenant -Subscription $sub
     $global:FakeAz.Context
 }
-function Get-AzSubscription { [CmdletBinding()] param($TenantId) Add-FakeAzCall 'Get-AzSubscription' $PSBoundParameters; $global:FakeAz.Subscriptions | Where-Object TenantId -eq $TenantId }
+function Get-AzSubscription {
+    [CmdletBinding()] param($TenantId)
+    Add-FakeAzCall 'Get-AzSubscription' $PSBoundParameters
+    if ($global:FakeAz.ListEverySubscription) { return $global:FakeAz.Subscriptions }
+    $global:FakeAz.Subscriptions | Where-Object TenantId -eq $TenantId
+}
 function Invoke-AzRestMethod {
     [CmdletBinding(SupportsShouldProcess)] param($Path, $Method, $Payload, $Uri)
     Add-FakeAzCall 'Invoke-AzRestMethod' $PSBoundParameters
+    if ($Path -match '/providers/(Microsoft\.[A-Za-z]+)\?api-version=2021-04-01$') {
+        $state = if ($global:FakeAz.Providers.ContainsKey($Matches[1])) { $global:FakeAz.Providers[$Matches[1]] } else { 'Registered' }
+        return [pscustomobject]@{ StatusCode = $global:FakeAz.ProviderStatus; Content = (@{ namespace = $Matches[1]; registrationState = $state } | ConvertTo-Json) }
+    }
     [pscustomobject]@{ StatusCode = $global:FakeAz.PermissionStatus; Content = $global:FakeAz.Permissions }
 }
 '@
@@ -52,6 +61,9 @@ function Get-AzVM {
     [CmdletBinding()] param($ResourceGroupName, [switch]$Status, $Name, [switch]$UserData)
     Add-FakeAzCall 'Get-AzVM' $PSBoundParameters
     if ($ResourceGroupName -and $ResourceGroupName -in $global:FakeAz.VmReadFailures) { throw "AuthorizationFailed: cannot read $ResourceGroupName" }
+    # Like the real cmdlet, a resource group that does not exist is an error, not an empty list.
+    $known = @($global:FakeAz.ResourceGroups.ResourceGroupName) + @($global:FakeAz.Vms.ResourceGroupName)
+    if ($ResourceGroupName -and $ResourceGroupName -notin $known) { throw "ResourceGroupNotFound: Resource group '$ResourceGroupName' could not be found." }
     $global:FakeAz.Vms | Where-Object { -not $ResourceGroupName -or $_.ResourceGroupName -eq $ResourceGroupName }
 }
 '@
@@ -87,7 +99,7 @@ function global:New-FakeAzContext {
     [pscustomobject]@{
         Tenant       = [pscustomobject]@{ Id = $Tenant }
         Account      = [pscustomobject]@{ Id = $global:FakeAz.Account; Type = $global:FakeAz.AccountType }
-        Subscription = $(if ($Subscription) { [pscustomobject]@{ Id = $Subscription.Id; Name = $Subscription.Name; TenantId = $Subscription.TenantId } })
+        Subscription = $(if ($Subscription) { [pscustomobject]@{ Id = $Subscription.Id; Name = $Subscription.Name; TenantId = $Subscription.TenantId; HomeTenantId = $Subscription.HomeTenantId } })
     }
 }
 
@@ -122,11 +134,12 @@ function New-FakeAzState {
         AutosaveMode = 'Process'
         Account = 'reader@fixture.example'; AccountType = 'User'
         SignInTenant = $null; SignInSubscription = $null; SignInWithoutSubscription = $false; Context = $null; ContextOverride = $null
-        Fail = @()
+        Fail = @(); ListEverySubscription = $false; Providers = @{}; ProviderStatus = 200
         Subscriptions = @(
             [pscustomobject]@{ Name = 'Lab'; Id = $lab; SubscriptionId = $lab; State = 'Enabled'; TenantId = $tenant; HomeTenantId = $tenant }
             [pscustomobject]@{ Name = 'Production'; Id = 'bbbbbbbb-0000-0000-0000-000000000002'; SubscriptionId = 'bbbbbbbb-0000-0000-0000-000000000002'; State = 'Enabled'; TenantId = $tenant; HomeTenantId = $tenant }
             [pscustomobject]@{ Name = 'Other tenant'; Id = 'bbbbbbbb-0000-0000-0000-000000000003'; SubscriptionId = 'bbbbbbbb-0000-0000-0000-000000000003'; State = 'Enabled'; TenantId = 'aaaaaaaa-0000-0000-0000-000000000002'; HomeTenantId = 'aaaaaaaa-0000-0000-0000-000000000002' }
+            [pscustomobject]@{ Name = 'Zz delegated customer'; Id = 'bbbbbbbb-0000-0000-0000-000000000004'; SubscriptionId = 'bbbbbbbb-0000-0000-0000-000000000004'; State = 'Enabled'; TenantId = $tenant; HomeTenantId = 'aaaaaaaa-0000-0000-0000-000000000003' }
         )
         PermissionStatus = 200
         Permissions = '{"value":[{"actions":["*/read"],"notActions":[]}]}'

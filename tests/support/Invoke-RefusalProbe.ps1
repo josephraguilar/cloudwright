@@ -139,6 +139,7 @@ switch ($Kind) {
     'AzureReadParameter' { & (Get-Module AzureReadOnly) { param($options) Invoke-AzReadCommand 'Get-AzVM' @{ UserData = $true } @options } $common }
     'AzureReadPath' { & (Get-Module AzureReadOnly) { param($options) Invoke-AzReadCommand 'Invoke-AzRestMethod' @{ Path = '/subscriptions/bbbbbbbb-0000-0000-0000-000000000001/resourceGroups/fixture?api-version=2022-04-01' } @options } $common }
     'AzureReadContext' { Get-AzReadOnlyVm @common }
+    'AzureReadProvider' { & (Get-Module AzureReadOnly) { param($options) Invoke-AzReadCommand 'Get-AzVM' @{ Status = $true } @options } $common }
     default { [Console]::WriteLine('UNKNOWN-PROBE'); exit 95 }
 }
 [Console]::WriteLine('CALLER-CONTINUED'); exit 96

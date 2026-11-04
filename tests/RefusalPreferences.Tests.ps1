@@ -10,7 +10,7 @@ BeforeDiscovery {
         @{ Kind = 'M365Script'; Target = [IO.Path]::GetRelativePath($root, $path); Expected = 'Microsoft 365 safe mode' }
     })
     foreach ($kind in 'M365Change', 'M365Guard', 'M365Graph', 'M365Scope', 'M365Hudu', 'M365Password', 'M365Browser', 'M365Command', 'M365Exchange', 'LearnSource', 'LearnGraph', 'LearnGenerate',
-        'AzureReadCommand', 'AzureReadParameter', 'AzureReadPath', 'AzureReadContext') {
+        'AzureReadCommand', 'AzureReadParameter', 'AzureReadPath', 'AzureReadContext', 'AzureReadProvider') {
         $expected = switch ($kind) {
             'M365Browser' { 'Safe mode: opening' }
             'M365Command' { 'Safe mode' }
@@ -22,6 +22,7 @@ BeforeDiscovery {
             'AzureReadParameter' { 'refuses parameter -UserData for Get-AzVM' }
             'AzureReadPath' { 'refuses this Invoke-AzRestMethod request' }
             'AzureReadContext' { 'refuses to continue: the Azure context' }
+            'AzureReadProvider' { 'Microsoft.Compute is not registered' }
             default { 'Microsoft 365 safe mode' }
         }
         $targets += @{ Kind = $kind; Target = '.'; Expected = $expected }
@@ -81,10 +82,12 @@ BeforeAll {
         "@{ ModuleVersion = '1.0.0'; FunctionsToExport = @() }" | Set-Content (Join-Path $folder "$name.psd1")
     }
     # Azure read-only probes: Get-AzContext reports another subscription than the
-    # verified session; every other command terminates the child with a canary.
+    # verified session, and every provider is NotRegistered. Every other command
+    # terminates the child with a canary.
     $canary = "{ [Console]::WriteLine('SIDE-EFFECT-CANARY'); [Environment]::Exit(91) }"
+    $provider = "{ param(`$Path, `$Method, `$WhatIf, `$Confirm) if (`$Path -like '*/providers/Microsoft.Compute?api-version=2021-04-01') { return [pscustomobject]@{ StatusCode = 200; Content = '{`"registrationState`":`"NotRegistered`"}' } }; [Console]::WriteLine('SIDE-EFFECT-CANARY'); [Environment]::Exit(91) }"
     $fakeAz = @{
-        'Az.Accounts' = "function Get-AzContext { [pscustomobject]@{ Tenant = [pscustomobject]@{ Id = 'aaaaaaaa-0000-0000-0000-000000000001' }; Account = [pscustomobject]@{ Id = 'reader@fixture.example' }; Subscription = [pscustomobject]@{ Id = 'bbbbbbbb-0000-0000-0000-000000000002' } } }`nfunction Invoke-AzRestMethod $canary"
+        'Az.Accounts' = "function Get-AzContext { [pscustomobject]@{ Tenant = [pscustomobject]@{ Id = 'aaaaaaaa-0000-0000-0000-000000000001' }; Account = [pscustomobject]@{ Id = 'reader@fixture.example' }; Subscription = [pscustomobject]@{ Id = 'bbbbbbbb-0000-0000-0000-000000000002' } } }`nfunction Invoke-AzRestMethod $provider"
         'Az.Compute' = "function Get-AzVM $canary`nfunction Invoke-AzVMRunCommand $canary"
     }
     foreach ($name in $fakeAz.Keys) {
