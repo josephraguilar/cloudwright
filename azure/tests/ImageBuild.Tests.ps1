@@ -1,5 +1,7 @@
 BeforeAll {
-    $script:ManifestPath = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'ImageBuild' 'ImageBuild.psd1'
+    . (Join-Path $PSScriptRoot 'helpers/LegacyAzure.ps1')
+    $script:AzureTestRoot = New-LegacyAzureTestCopy -Destination (Join-Path $TestDrive 'legacy-azure')
+    $script:ManifestPath = Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'ImageBuild' 'ImageBuild.psd1'
     $script:Source = Get-Content (Join-Path (Split-Path $script:ManifestPath) 'ImageBuild.psm1') -Raw
     Import-Module $script:ManifestPath -Force
 }

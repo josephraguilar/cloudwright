@@ -8,6 +8,9 @@
 #          passwords) as protected parameters that never land in a log.
 #   GOTCHA $ErrorActionPreference is set here at module scope; module functions do
 #          not inherit the caller's. Nothing in this module deletes a resource.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 #endregion

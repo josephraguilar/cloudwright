@@ -1,5 +1,7 @@
 # Script library
 
+**Safe release:** all bundled guest scripts refuse execution. They remain here for offline review and tests.
+
 Scripts the GUI (Scripting > Windows scripts) and `apps/Invoke-GuestScript.ps1`
 run inside VMs through managed Run Commands: as SYSTEM, in Windows PowerShell 5.1,
 one VM or a whole host pool at a time.

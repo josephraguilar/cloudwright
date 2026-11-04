@@ -1,5 +1,7 @@
 BeforeAll {
-    $script:Manifest = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'OpsAdmin' 'OpsAdmin.psd1'
+    . (Join-Path $PSScriptRoot 'helpers/LegacyAzure.ps1')
+    $script:AzureTestRoot = New-LegacyAzureTestCopy -Destination (Join-Path $TestDrive 'legacy-azure')
+    $script:Manifest = Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'OpsAdmin' 'OpsAdmin.psd1'
     $script:Source = Get-Content (Join-Path (Split-Path $script:Manifest) 'OpsAdmin.psm1') -Raw
     # CI has no Az module. One stub with every parameter the modules pass, shared by the test files.
     if (-not (Get-Module -ListAvailable Az.Accounts)) { function global:Invoke-AzRestMethod { param($Method, $Path, $Uri, $Payload) } }

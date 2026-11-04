@@ -1,16 +1,17 @@
 # Cloudwright safety review
 
 Date: 2026-11-03. Original baseline: `fbb7f367e129d363f6e609680be204703c22cf0a`.
-Candidate: version 0.2.0 on `safety/read-only-audit`.
+Candidate: version 0.2.1 on `safety/read-only-audit`.
 
 ## Decision and scope
 
 **Do not treat this repository as approved for routine Global Administrator use.**
-The supported Cloudwright interface permits Learn and Microsoft 365 inspection/reporting.
-Azure administration is blocked in the root launcher and its console/GUI entry points.
-The retained legacy Azure scripts/modules remain write-capable source; invoking them
-manually is outside the supported read-only interface. Learn generates text, and running
-that text elsewhere can change resources. Local setup, settings and report files can change.
+The owner confirmed safe mode covers all of Cloudwright. The interface permits Learn and
+Microsoft 365 inspection/reporting. Azure execution is blocked in the root launcher and
+every runtime entry file, including direct scripts, modules, guest scripts, GUI pages,
+the Automation runbook and CLI. Its legacy bodies remain for review behind unconditional
+refusals. Learn generates text; running that text or deploying reference Bicep with external
+tools can change resources. Local setup, settings and report files can change.
 
 Microsoft 365 script/API mutations are blocked. **Accepting Microsoft's consent prompt
 can still create or extend tenant permission grants.** Consent is a separate administrator
@@ -20,7 +21,8 @@ permissions, recovery from accidental consent, distribution trust and upgrade li
 Fable 5.1 and Opus 5.5 reviewed at max effort. Fable reviewed the original baseline;
 Opus round r2 reviewed `54a9290` and found no reachable M365 tenant-write path, but rejected
 publication due to correctness defects and inadequate end-to-end test evidence. The
-changes below address those findings. A fresh Opus review of this revision is pending.
+changes below address those findings. Round r3 was stopped when the owner confirmed the
+broader scope, before it returned a verdict. A fresh review of this revision is pending.
 This report is not an independent sign-off or a proof that every defect is absent.
 
 ## What the candidate enforces
@@ -48,8 +50,14 @@ This report is not an independent sign-off or a proof that every defect is absen
   Entra reimage refuses before authentication, drain or deletion. The retired cleanup
   switch refuses at entry; new Entra hosts check for existing records before VM creation;
   joins/preflight stop on stale records or failed lookups instead of continuing.
+- All 101 Azure runtime PowerShell files now throw before initialization or function
+  definitions. Module imports fail without exports even with Continue; the CLI also stops.
+  There is no shared guard dependency or supported override. Parameter defaults contain
+  only reviewed local reads; no Azure authentication occurs before the block.
 - Bootstrap refuses old incompatible caches and preserves their settings. The policy file
-  is required by install preflight. The compatibility marker does not verify authenticity.
+  is required by install preflight. Version 0.2.1 requires safety baseline 2 in the archive,
+  checkout and cache record; baseline 1 only covered M365. These markers are compatibility
+  checks and do not verify authenticity.
 
 ## Opus round r2 findings and response
 
@@ -63,7 +71,7 @@ This report is not an independent sign-off or a proof that every defect is absen
 | C6: fictional GUID did not trigger setup prompts | The shipped group ID is now an actual angle-bracket placeholder. Group and tenant fixture IDs differ. Broad-role legacy tests use their own explicit fixture. |
 | C7: Learn console exited on refused Graph context | It catches the refusal, warns, and continues with typed values/offline mode. |
 | C8: additional hardening | Missing-policy test now actually imports with Continue. Command AST rejects line breaks/requirements. M365 GUI relaunch uses NoProfile. Relative command paths still rely on the frontend's fixed working directory; same-process malicious code remains outside the boundary. |
-| D1: Azure accessible from the same safe menu | Root, Azure console and Azure GUI refuse administration. The conservative scope was chosen while the optional owner scope question remained unanswered. Direct legacy Azure source is explicitly outside the supported interface. |
+| D1: Azure accessible from the same safe menu | Owner confirmed all of Cloudwright must be read-only. Root, console/GUI, direct scripts, module imports, guest scripts, runbook and CLI all refuse. Azure stays unavailable until a read-only implementation receives review. |
 | D2/D3/D4: privilege, prior consent and consent writes | Documented limitations remain. Use a reader identity. Context metadata must be checked against actual token scopes in a disposable tenant. Existing broad consent can cause refusal; requesting reads does not revoke old grants. A dedicated read-only app is recommended but is not provisioned/configured automatically by this release. |
 | D5: broad GDAP template nudges users toward GA | Default template now contains Global Reader only. Existing local templates are not silently changed. |
 
@@ -79,31 +87,37 @@ console/GUI workflow, not every direct invocation.
 
 Legacy Azure still needs a central mutation guard/preview, explicit directory tenant and
 resource subscription validation, enforced RDP expiry and narrow network validation,
-and verified immutable identities for cleanup and consent. Disabling its UI does not fix
-those retained functions or certify them for direct use. Existing destructive examples
-in legacy documentation describe unavailable or unsafe-for-read-mode operations.
+and verified immutable identities for cleanup and consent. Blocking all entry points
+does not fix the retained algorithms. Existing destructive examples in legacy documentation
+are reference material and describe operations unavailable in this release.
 
 Supply-chain risks remain: mutable IEX/main downloads, unpinned dependencies, host and SDK
-trust. Old installed commands keep old behavior. Read scopes and reports can expose
+trust. Old installed commands, loaded modules and deployed runbooks keep old behavior.
+Read scopes and reports can expose
 sensitive mail, identity and audit information; DNS checks can disclose domains to a
 third-party resolver. Vendor integration names are not proof of personal attribution,
 and a secret scan is not an anonymity certification.
 
 ## Validation and coverage
 
-PowerShell 7.6.9, Pester 5.7.1: root **29**, Learn **137**, M365 **504**, Azure **142**:
-**812 passed**. Repository analyzer checks found zero warnings/errors; all **415**
-PowerShell files parsed. Unchanged infrastructure had 11 Bicep templates compiled,
-ShellCheck passed, and XAML/example JSON parsed. The repository secret scan found no
-leaks; the staged privacy scan found only fictional fixture emails, with no detected
-personal/company identifiers, credential patterns, phone numbers or Discord IDs.
+PowerShell 7.6.9, Pester 5.7.1: root **31**, Learn **137**, M365 **504**, Azure **246**:
+**918 passed**. Root/Azure were rerun for the broader block; Learn/M365 executable
+source is unchanged from their successful runs. All **417** PowerShell files parse;
+configured analyzer checks report zero warnings/errors. ShellCheck passes and XAML/
+example JSON parse. Unchanged infrastructure previously had 11 Bicep templates compiled.
+The release tests cover 89 direct scripts and 12 module imports, plus manifest prerequisites
+and the CLI refusal. The repository secret scan found no leaks; the staged scan detected
+no personal/company identifiers, email addresses, credential patterns, phone numbers or
+Discord IDs in this revision.
 
 The real-policy tests never mock the read-only guard. The E2E matrix exercises all 51
 catalog tasks with expected outcomes, including no approved-plan recorder. It now
 checks successful read completion and exact write refusal, not merely absence of writes.
 Legacy mutation-unit tests deliberately mock the policy against fake APIs; GDAP hostless
 runspaces do so only in a temporary test copy. Those tests do not prove production write
-availability. The Azure regression probes verify refusal before module initialization.
+availability. Azure legacy tests explicitly remove the block only in copies inside
+Pester TestDrive. The separate unmodified-policy matrix invokes every script and imports
+every module in fresh processes, requiring the exact refusal and no exported functions.
 
 No tenant was connected. No actual Graph/Exchange module sign-in, token/consent behavior,
 Windows WPF/WinForms/WebView2 UI or CI execution was verified. Mocked APIs cannot establish

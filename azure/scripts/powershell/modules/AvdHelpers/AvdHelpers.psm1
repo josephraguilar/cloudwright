@@ -4,6 +4,9 @@
 #   WHY    These functions are the building blocks for every AVD script and for the
 #          interactive console. Scripts stay thin; the logic that would end up in a
 #          web app lives here.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'   # module functions do not inherit the caller's value
 #endregion

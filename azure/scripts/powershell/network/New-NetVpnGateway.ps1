@@ -34,6 +34,9 @@ param(
     [Parameter()] [string]$GatewaySubnetPrefix,
     [Parameter()] [ValidateSet('VpnGw1AZ', 'VpnGw2AZ', 'VpnGw3AZ', 'VpnGw1', 'VpnGw2')] [string]$Sku = 'VpnGw1AZ'
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AzHelpers' 'AzHelpers.psd1') -Force -Verbose:$false

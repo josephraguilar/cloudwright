@@ -6,6 +6,9 @@
     Status: Untested
 #>
 param()
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $svc = Get-Service frxsvc -ErrorAction SilentlyContinue
 "Service: $(if ($svc) { $svc.Status } else { 'not installed' })"
 $exe = Join-Path $env:ProgramFiles 'FSLogix\Apps\frx.exe'

@@ -1,5 +1,7 @@
 BeforeAll {
-    $script:Root = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules'
+    . (Join-Path $PSScriptRoot 'helpers/LegacyAzure.ps1')
+    $script:AzureTestRoot = New-LegacyAzureTestCopy -Destination (Join-Path $TestDrive 'legacy-azure')
+    $script:Root = Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules'
     Import-Module (Join-Path $script:Root 'FilesAdmin' 'FilesAdmin.psd1') -Force
     Import-Module (Join-Path $script:Root 'BackupAdmin' 'BackupAdmin.psd1') -Force
 }

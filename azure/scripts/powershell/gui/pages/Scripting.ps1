@@ -9,6 +9,9 @@
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', '', Justification = 'Handlers and OnDone callbacks have fixed signatures.')]
 param()
 
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 function ConvertFrom-ParameterText {
     # "Name = value" per line (or name=value) into a hashtable; blank lines and # comments skipped.
     param([string]$Text)

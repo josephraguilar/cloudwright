@@ -1,8 +1,11 @@
-# Microsoft 365 safe mode
+# Cloudwright safe mode
 
-Cloudwright 0.2.0 makes **option 3 / `cloudwright m365` read-only for tenant operations**.
+Cloudwright 0.2.1 applies safe mode to **all of Cloudwright**. Learn generates text and
+performs optional read lookups; option 3 / `cloudwright m365` permits tenant inspections
+and reports. Azure/AVD execution is blocked pending a reviewed read-only implementation.
 There is no supported flag, environment variable, menu toggle, or approval that enables
-Microsoft 365 writes. Azure launcher/console/GUI entry points are disabled. Local setup, settings, reports, and logs can still write files.
+Microsoft 365 writes or Azure execution. Local setup, settings, reports, and logs can
+still write files.
 
 ## Enforcement
 
@@ -46,11 +49,14 @@ See Microsoft's documentation for [Graph authentication and application isolatio
 [Exchange command importing](https://learn.microsoft.com/powershell/module/exchangepowershell/connect-exchangeonline),
 and [Exchange RBAC](https://learn.microsoft.com/exchange/permissions-exo/permissions-exo).
 
-**Azure administration is disabled from Cloudwright and from the Azure console/GUI.**
-The legacy scripts and modules still in `azure/` are write-capable source, outside the
-supported read-only interface; invoking them directly is not safe-mode use. Automatic
-name-based directory deletion and Kerberos consent are disabled, and Entra reimage
-refuses before draining or deleting a host. The retired cleanup switch also refuses early.
+**Azure execution is disabled, including direct calls.** Every runtime PowerShell file
+throws before its first executable statement: scripts, modules, GUI pages, guest scripts
+and the Automation runbook. Module imports fail without exporting functions, even with
+`-ErrorAction Continue`. The CLI entry point exits with an error. These blocks do not
+depend on a shared policy file, session preference, environment variable or confirmation.
+The retained implementation still needs review before any read-only Azure features return.
+Bicep templates and documentation commands are reference material: Cloudwright cannot
+constrain someone invoking external Azure tools or deploying a template separately.
 Learn generates text only; copied commands can change or delete resources when executed
 outside Learn. Its own Graph lookups reject broad sessions.
 See [the review and remaining requirements](SECURITY-REVIEW.md).
@@ -63,11 +69,13 @@ keep local settings and reports out of Git and shared folders.
 
 ## Existing installations
 
-The new bootstrap refuses cached snapshots without safety baseline 1 and preserves their
+The new bootstrap refuses cached snapshots without safety baseline 2 and preserves their
 files. Install the reviewed release into a **new `-InstallPath`**, transfer only necessary
-local settings, and verify `cloudwright version` reports `0.2.0`. A previously installed
-command still uses its old checkout until reinstalled. The marker checks compatibility,
-not cryptographic integrity.
+local settings, and verify `cloudwright version` reports `0.2.1`. A previously installed
+command still uses its old checkout until reinstalled. Previously deployed Automation
+runbooks and already-loaded old modules also retain their old behavior; use a fresh
+PowerShell process with the reviewed installation. The marker checks compatibility,
+not cryptographic integrity. The new archive and checkout must declare baseline 2 too.
 
 Prefer a reviewed, commit-pinned checkout for administrative use. `irm | iex` from `main`
 executes what is served at that moment; safeguards in that code cannot authenticate their
@@ -82,6 +90,9 @@ write tasks must return the exact safe-mode refusal, and none may reach a write 
 An unrelated error fails the test. The fake Exchange session enforces the imported
 command list, and the tenant-lookup canary runs under StrictMode. Legacy mutation-unit tests mock the policy against fake APIs to retain
 algorithm coverage; GDAP runspace tests override it only in a temporary test copy.
+Azure legacy algorithm tests use copies inside Pester TestDrive with the release block
+removed; they are not evidence that production functions can execute. Separate release
+tests use unmodified source for every script and isolated processes for module imports.
 
 No live tenant was connected or changed. Mocked tests do not establish real SDK behavior,
 permissions, tenant-specific correctness, or Windows desktop behavior. Validate those

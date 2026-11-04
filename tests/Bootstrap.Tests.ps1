@@ -30,9 +30,10 @@ Describe 'Cloudwright download bootstrap' {
 
     It 'downloads one pinned snapshot anonymously and installs a working command' {
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
-        cloudwright version | Should -Be '0.2.0'
+        cloudwright version | Should -Be '0.2.1'
         $record = Get-Content (Join-Path $script:Destination 'Cloudwright.download.json') -Raw | ConvertFrom-Json
         $record.Commit | Should -Be $script:Commit
+        $record.SafetyBaseline | Should -Be 2
         $location = Get-Content (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.location.json') -Raw | ConvertFrom-Json
         $location.RepositoryRoot | Should -Be $script:Destination
         Should -Invoke Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
@@ -52,7 +53,7 @@ Describe 'Cloudwright download bootstrap' {
             Invoke-Expression ('& {' + $code + "`n} -InstallPath `$script:Destination -ModulePath `$script:ModuleBase -NoLaunch")
         } finally { Pop-Location }
         $ErrorActionPreference | Should -Be $before
-        cloudwright version | Should -Be '0.2.0'
+        cloudwright version | Should -Be '0.2.1'
     }
 
     It 'accepts a literal text-to-IEX pipeline with no script invocation context' {
@@ -97,10 +98,14 @@ Describe 'Cloudwright download bootstrap' {
         Should -Invoke Invoke-WebRequest -Times 0 -Exactly
     }
 
-    It 'refuses to reuse an old snapshot and preserves its local files' {
+    It 'refuses to reuse a snapshot with safety baseline <Baseline> and preserves its local files' -ForEach @(
+        @{ Baseline = 0 }, @{ Baseline = 1 }
+    ) {
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
         $marker = Join-Path $script:Destination 'Cloudwright.download.json'
-        @{ Tool = 'Cloudwright'; SchemaVersion = 1; Commit = $script:Commit } | ConvertTo-Json | Set-Content -LiteralPath $marker
+        $old = @{ Tool = 'Cloudwright'; SchemaVersion = 1; Commit = $script:Commit }
+        if ($Baseline) { $old.SafetyBaseline = $Baseline }
+        $old | ConvertTo-Json | Set-Content -LiteralPath $marker
         $local = Join-Path $script:Destination 'm365/settings.local.json'
         Set-Content -LiteralPath $local -Value '{"keep":true}'
         { & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase } | Should -Throw '*predates mandatory*safe mode*'
@@ -133,6 +138,20 @@ Describe 'Cloudwright download bootstrap' {
         }
         { & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch } |
             Should -Throw '*Incomplete Cloudwright archive*'
+        Test-Path -LiteralPath $script:Destination | Should -BeFalse
+        Test-Path -LiteralPath $script:ModuleBase | Should -BeFalse
+    }
+
+    It 'rejects an otherwise complete archive with only the older M365 safety policy' {
+        Mock Expand-Archive {
+            $copy = Join-Path $DestinationPath 'older'
+            $null = New-Item -ItemType Directory -Path $DestinationPath -Force
+            Copy-Item (Join-Path $TestDrive 'snapshot') -Destination $copy -Recurse
+            $manifest = Join-Path $copy 'Cloudwright.psd1'
+            (Get-Content $manifest -Raw).Replace('CloudwrightSafetyBaseline = 2', 'CloudwrightSafetyBaseline = 1') | Set-Content $manifest
+        }
+        { & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch } |
+            Should -Throw '*archive predates mandatory Cloudwright safe mode*'
         Test-Path -LiteralPath $script:Destination | Should -BeFalse
         Test-Path -LiteralPath $script:ModuleBase | Should -BeFalse
     }

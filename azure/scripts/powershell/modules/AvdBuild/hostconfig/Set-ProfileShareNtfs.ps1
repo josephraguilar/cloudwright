@@ -32,6 +32,9 @@ param(
 #          S-1-5-11 Authenticated Users, S-1-3-0 CREATOR OWNER.
 #          Users get Modify on the root only, CREATOR OWNER gets Modify on what they
 #          create, Administrators get Full Control everywhere.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $drive = 'Y:'
 $null = net use $drive $ShareUnc /user:$UserName $Key /persistent:no
 if ($LASTEXITCODE -ne 0) { throw "net use failed (exit $LASTEXITCODE) mounting $ShareUnc" }

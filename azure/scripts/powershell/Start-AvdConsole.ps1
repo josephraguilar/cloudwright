@@ -57,6 +57,9 @@ param(
 #   WHY    $script:Remembered lets "add another host" reuse the subnet, gallery, and
 #          domain you typed last time. It lives only for this run; nothing is written
 #          to disk, so no client values ever land in the repo.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 throw 'Cloudwright safe release: Azure/AVD administration is disabled pending a reviewed read-only implementation.'

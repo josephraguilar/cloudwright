@@ -14,6 +14,9 @@ param(
     [int]$EnableSqlAuth = 0,
     [string]$SaPassword = ''
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $ErrorActionPreference = 'Stop'
 $instance = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL' -ErrorAction Stop).MSSQLSERVER
 if (-not $instance) { throw 'No default SQL Server instance found on this VM.' }

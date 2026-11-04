@@ -9,6 +9,9 @@
 param(
     [string]$SiteTitle = 'IIS is running'
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $ErrorActionPreference = 'Stop'
 $features = 'Web-Server', 'Web-Mgmt-Console', 'Web-Asp-Net45', 'Web-Http-Logging', 'Web-Static-Content', 'Web-Default-Doc', 'Web-Http-Errors', 'Web-Dir-Browsing'
 $result = Install-WindowsFeature -Name $features -IncludeManagementTools

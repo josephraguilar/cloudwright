@@ -1,5 +1,7 @@
 BeforeAll {
-    $script:ManifestPath = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'EntraAdmin' 'EntraAdmin.psd1'
+    . (Join-Path $PSScriptRoot 'helpers/LegacyAzure.ps1')
+    $script:AzureTestRoot = New-LegacyAzureTestCopy -Destination (Join-Path $TestDrive 'legacy-azure')
+    $script:ManifestPath = Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'EntraAdmin' 'EntraAdmin.psd1'
     $script:Source = Get-Content (Join-Path (Split-Path $script:ManifestPath) 'EntraAdmin.psm1') -Raw
     # CI has no Az module: a stub lets Pester mock the one Az call this module makes.
     # CI has no Az module. One stub with every parameter the modules pass, shared by the test files.

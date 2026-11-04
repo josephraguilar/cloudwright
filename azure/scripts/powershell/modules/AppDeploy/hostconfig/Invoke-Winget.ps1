@@ -22,6 +22,9 @@ param(
     [string]$Query = '',
     [string]$Id = ''
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $ErrorActionPreference = 'Stop'
 $winget = Get-ChildItem -Path "$env:ProgramFiles\WindowsApps" -Filter 'Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe' -Directory -ErrorAction SilentlyContinue |
     Sort-Object { [version](($_.Name -split '_')[1]) } -Descending | ForEach-Object { Join-Path $_.FullName 'winget.exe' } | Where-Object { Test-Path $_ } | Select-Object -First 1

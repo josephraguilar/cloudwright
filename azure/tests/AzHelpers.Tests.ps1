@@ -1,5 +1,7 @@
 BeforeAll {
-    $script:ManifestPath = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'AzHelpers' 'AzHelpers.psd1'
+    . (Join-Path $PSScriptRoot 'helpers/LegacyAzure.ps1')
+    $script:AzureTestRoot = New-LegacyAzureTestCopy -Destination (Join-Path $TestDrive 'legacy-azure')
+    $script:ManifestPath = Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'AzHelpers' 'AzHelpers.psd1'
 }
 
 Describe 'AzHelpers module' {

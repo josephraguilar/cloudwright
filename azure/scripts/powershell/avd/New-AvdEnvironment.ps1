@@ -275,6 +275,9 @@ param(
 #          runner gives Retry / Skip / Abort without repeating try/catch seven
 #          times. The ownership tracker is what makes Abort safe: it only ever
 #          deletes things this run created.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

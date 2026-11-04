@@ -20,6 +20,9 @@ param(
     [string]$PfxPassword = '',
     [ValidateSet('My', 'Root', 'CA', 'TrustedPublisher')] [string]$StoreName = 'My'
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $ErrorActionPreference = 'Stop'
 $bytes = [Convert]::FromBase64String($CertificateBase64)
 $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]'MachineKeySet, PersistKeySet'

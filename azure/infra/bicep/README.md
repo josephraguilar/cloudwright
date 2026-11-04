@@ -1,5 +1,7 @@
 # Bicep
 
+**Safe release:** these templates are retained design/reference material. Cloudwright does not deploy them. Running the external deployment commands below would change Azure resources and is outside Cloudwright safe mode.
+
 Declarative infrastructure. Bicep compiles to ARM JSON at deploy time, so only `.bicep`
 and `.bicepparam` files are committed.
 

@@ -101,6 +101,9 @@ param(
 #region 2. Setup --------------------------------------------------------------
 #   WHAT   Modules, context, and confirm the VM exists. Everything else is
 #          idempotent and safe to re-run.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

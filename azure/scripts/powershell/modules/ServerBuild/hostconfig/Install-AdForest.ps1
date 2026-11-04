@@ -15,6 +15,9 @@ param(
     [Parameter(Mandatory)] [string]$SafeModePassword,
     [string]$DataDrive = ''
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $ErrorActionPreference = 'Stop'
 if (Get-Service NTDS -ErrorAction SilentlyContinue) {
     "NTDS service already present: this server is already a domain controller. Nothing to do."

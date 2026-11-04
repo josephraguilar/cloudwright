@@ -70,6 +70,9 @@ param(
 #          sandbox, which is the standard first line of every Automation runbook.
 #          Connect-AzAccount -Identity uses the Automation account's own identity:
 #          nothing to store, nothing to rotate.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

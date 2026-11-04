@@ -37,6 +37,9 @@ param(
     [Parameter()] [securestring]$Password,
     [Parameter()] [ValidateSet('My', 'Root', 'CA', 'TrustedPublisher')] [string]$StoreName = 'My'
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AzHelpers' 'AzHelpers.psd1') -Force -Verbose:$false

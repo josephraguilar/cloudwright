@@ -30,6 +30,9 @@ param(
     [Parameter()] [ValidateSet('Avd', 'Vms', 'Backup', 'Storage', 'Network', 'Cost', 'Changes')] [string[]]$Section = @('Avd', 'Vms', 'Backup', 'Storage', 'Network', 'Cost', 'Changes'),
     [Parameter()] [ValidateRange(1, 2160)] [int]$ChangeHours = 168
 )
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 foreach ($m in 'AzHelpers', 'OpsAdmin', 'BackupAdmin', 'FilesAdmin', 'NetworkBuild') {

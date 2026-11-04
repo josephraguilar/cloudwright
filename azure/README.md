@@ -1,14 +1,15 @@
 # azure
 
-Part of [Cloudwright](../README.md). After installing the root launcher, run
-`cloudwright azure` or `cloudwright azure -Console`.
-Direct-script examples below run from this `azure/` directory.
+Part of [Cloudwright](../README.md). Azure/AVD execution is disabled until a reviewed
+read-only mode is available. `cloudwright azure` and direct entry points refuse.
 
-**Azure launcher, console and GUI administration are disabled in this safe release.**
-The legacy scripts/modules below remain write-capable source and are outside the
-supported read-only interface. Automatic Entra cleanup and Kerberos consent by display
-name are disabled. Entra reimage and the retired cleanup switch refuse before changes;
-new Entra hosts are checked for existing device records before VM creation. See the
+**Every runtime PowerShell file refuses before initialization, authentication or any
+administration.** This includes direct scripts, module imports, GUI pages, guest scripts
+and the Automation runbook. The CLI entry point also refuses. There is no supported
+override. The legacy code and examples below are retained for review, not operational use.
+Bicep templates are reference material; Cloudwright does not deploy them. Running external
+Azure commands or manually deploying templates remains outside the software's control.
+Already deployed runbooks and older installed copies are unaffected. See the
 [safety review and unresolved findings](../docs/SECURITY-REVIEW.md).
 
 Personal repo for learning Azure and for building Nerdio-style Azure Virtual Desktop

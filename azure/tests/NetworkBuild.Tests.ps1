@@ -1,5 +1,7 @@
 BeforeAll {
-    $script:ManifestPath = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1'
+    . (Join-Path $PSScriptRoot 'helpers/LegacyAzure.ps1')
+    $script:AzureTestRoot = New-LegacyAzureTestCopy -Destination (Join-Path $TestDrive 'legacy-azure')
+    $script:ManifestPath = Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1'
 }
 
 Describe 'NetworkBuild module' {
@@ -32,18 +34,18 @@ Describe 'NetworkBuild module' {
 }
 
 Describe 'Set-NetSecurityRule safety' {
-    BeforeAll { Import-Module (Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1') -Force }
+    BeforeAll { Import-Module (Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1') -Force }
     It 'refuses an inbound Allow from <_> without -AllowInternetSource' -ForEach '*', 'Internet', '0.0.0.0/0', 'Any' {
         { Set-NetSecurityRule -NetworkSecurityGroupId '/subscriptions/x/resourceGroups/rg/providers/Microsoft.Network/networkSecurityGroups/n' -Name r1 -Priority 200 -Direction Inbound -Access Allow -SourceAddressPrefix $_ -DestinationPortRange 3389 } |
             Should -Throw '*whole internet*'
     }
     It 'has no remove path: rules are switched off with Deny' {
-        $src = Get-Content (Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psm1') -Raw
+        $src = Get-Content (Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psm1') -Raw
         $src | Should -Not -Match 'Remove-AzNetworkSecurityRuleConfig'
         $src | Should -Not -Match 'Remove-Az'
     }
     It 'every manifest export is exported' {
-        $m = Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1'
+        $m = Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1'
         $actual = (Get-Command -Module NetworkBuild).Name
         foreach ($f in (Import-PowerShellDataFile $m).FunctionsToExport) { $actual | Should -Contain $f }
     }
@@ -51,7 +53,7 @@ Describe 'Set-NetSecurityRule safety' {
 
 Describe 'Subnet address maths' {
     BeforeAll {
-        Import-Module (Join-Path $PSScriptRoot '..' 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1') -Force
+        Import-Module (Join-Path $script:AzureTestRoot 'scripts' 'powershell' 'modules' 'NetworkBuild' 'NetworkBuild.psd1') -Force
         $script:Taken = @{ 'snet-avd' = '10.10.1.0/24'; 'GatewaySubnet' = '10.10.255.0/27' }
     }
     It 'accepts a free /24 inside the space' { @(Test-NetSubnetPrefix -Prefix '10.10.2.0/24' -AddressSpace '10.10.0.0/16' -Existing $script:Taken).Count | Should -Be 0 }

@@ -15,6 +15,9 @@
 #          piling up new ones. Nothing here removes a run command, a package, a
 #          certificate or a store entry. The store is a gitignored file
 #          (toolbox.local.json); edit it by hand to drop an entry.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:HostConfig = Join-Path $PSScriptRoot 'hostconfig'

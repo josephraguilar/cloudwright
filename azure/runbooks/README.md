@@ -1,5 +1,7 @@
 # Runbooks
 
+**Safe release:** the bundled runbook refuses before authentication or host operations. Do not deploy it as an active health job. Previously deployed copies are unaffected by a source update.
+
 Scripts meant to run unattended in an Azure Automation account on a schedule.
 
 They differ from `scripts/powershell/` in one important way: **nobody is logged in.**

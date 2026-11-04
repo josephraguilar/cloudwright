@@ -1,5 +1,7 @@
 # GUI
 
+**Safe release:** the GUI entry point and all page scripts refuse execution until Azure has a reviewed read-only mode.
+
 `Start-AvdGui.ps1` is a Windows desktop front end for the same scripts the console runs.
 It is PowerShell plus three XAML files, no compiler, no installer. The same trick
 Chris Titus's WinUtil uses: PowerShell loads a WPF window from XAML, finds the named

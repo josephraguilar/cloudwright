@@ -63,6 +63,9 @@ param(
 #   WHAT   Modules, context, and an inventory of what is about to go.
 #   WHY    The Entra cleanup needs the VM and storage account names, and they are
 #          gone once the group is. Capture first, delete second.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($Force -and -not $PSBoundParameters.ContainsKey('Confirm')) { $ConfirmPreference = 'None' }

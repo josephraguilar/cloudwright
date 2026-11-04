@@ -11,6 +11,9 @@
 param()
 
 # --- Users --------------------------------------------------------------------
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 function New-EntraUsersPage {
     $page = @{ Key = 'NavEntraUsers'; Form = New-Form }
     $root = New-PageRoot -Title 'Users' -Lead 'Users in the directory of the signed-in account. Right-click a row, or select rows and open Manage. Users synced from Active Directory are changed in AD, not here.'

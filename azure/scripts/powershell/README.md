@@ -1,5 +1,7 @@
 # PowerShell scripts
 
+**Safe release:** all scripts and module imports in this tree refuse before execution. The documentation below describes retained legacy code, not available administration. See [the safety policy](../../../docs/SAFETY.md).
+
 Requires PowerShell 7+ and the `Az` module (`Install-Module Az -Scope CurrentUser`).
 
 - `Start-AvdConsole.ps1` is the interactive front end. Run it with no arguments.

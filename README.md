@@ -5,7 +5,8 @@ Virtual Desktop, and Microsoft 365.
 
 **Safe release:** option 3 / `cloudwright m365` permits inspection and reporting;
 Microsoft 365 mutation scripts and GDAP approval actions are blocked. Azure/AVD
-administration is disabled in the launcher and its console/GUI entry points.
+execution is blocked in the launcher, console/GUI, standalone scripts, modules,
+guest scripts, Automation runbook and CLI entry point until its read-only mode is reviewed.
 **Accepting a Microsoft consent prompt can still change tenant permission grants.**
 Use a reader account and decline organizational consent unless separately intended.
 Read [the safety boundary and upgrade instructions](docs/SAFETY.md) before signing in.
@@ -36,8 +37,9 @@ that variable is unset. Keep this directory: it also holds your local settings a
 generated output. Subsequent bootstrap runs reuse it and preserve those files;
 they do not automatically upgrade the snapshot. For a later snapshot, use a new
 `-InstallPath` and transfer only the local settings you need from the old directory.
-The new bootstrap refuses older cached snapshots without mandatory Microsoft 365 safe
-mode. Existing installed commands are not upgraded automatically.
+The new bootstrap refuses older cached snapshots without mandatory Cloudwright safe
+mode, including the earlier M365-only candidate. Existing installed commands and deployed
+runbooks are not upgraded automatically.
 
 After the first install, just run `cloudwright` in any PowerShell 7 session. To
 download without opening the menu or to choose a location, save the bootstrap and run:
@@ -110,8 +112,9 @@ cloudwright version
 Azure administration is refused even with `-WhatIf`; M365 mutation scripts also refuse
 instead of running their legacy dry-run workflows.
 
-Azure entry points are disabled in this release. Legacy scripts in `azure/` remain
-write-capable source and are outside the supported read-only interface.
+Azure entry points refuse execution even when called directly, and its modules refuse
+import. Legacy bodies remain for review behind these unconditional blocks. Bicep and
+documentation commands are reference material; Cloudwright does not deploy them.
 
 The top-level menu, help, and version do not sign in or install cloud dependencies.
 Each selected area runs in a fresh PowerShell process. In-memory sessions from your

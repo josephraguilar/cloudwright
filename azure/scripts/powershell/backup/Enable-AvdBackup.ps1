@@ -92,6 +92,9 @@ param(
 #region 2. Setup --------------------------------------------------------------
 #   WHAT   Strict mode, fail fast, modules, context, cross-parameter checks.
 #   WHY    Same opening as every script. The share parameters travel as a pair.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

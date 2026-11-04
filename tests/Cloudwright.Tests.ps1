@@ -24,7 +24,7 @@ Describe 'Cloudwright command contract' {
     }
 
     It 'reports a version without launching a tool' {
-        cloudwright version | Should -Be '0.2.0'
+        cloudwright version | Should -Be '0.2.1'
         Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 0 -Exactly
     }
 
@@ -119,7 +119,7 @@ Describe 'Child process isolation' {
         $module = Get-Module Cloudwright
         { & $module { param($Path) Invoke-CloudwrightProcess -ScriptPath $Path } $entry } |
             Should -Throw '*code 7*'
-        cloudwright version | Should -Be '0.2.0'
+        cloudwright version | Should -Be '0.2.1'
     }
 }
 
@@ -149,7 +149,7 @@ Describe 'Current-user launcher installation' {
             finally { Pop-Location }
         } finally { $env:PSModulePath = $previousPath }
         $fresh.ExitCode | Should -Be 0 -Because $fresh.Output
-        $fresh.Output.Trim() | Should -Be '0.2.0'
+        $fresh.Output.Trim() | Should -Be '0.2.1'
     }
 
     It 'requires Force to update and preserves other files in its installation' {

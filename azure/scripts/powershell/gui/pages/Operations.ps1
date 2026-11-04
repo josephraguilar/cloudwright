@@ -10,6 +10,9 @@
 param()
 
 # --- AVD dashboard ------------------------------------------------------------------
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 function New-AvdDashboardPage {
     $page = @{ Key = 'NavDashboardAvd'; Tiles = @{}; Form = New-Form; Pools = @() }
     $root = New-PageRoot -Title 'AVD dashboard' -Lead 'Every host pool at a glance, and connection history from Log Analytics for pools that send diagnostics there (Settings, Integrations turns that on).'

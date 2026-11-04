@@ -12,6 +12,9 @@
 #          version or a definition; clean-up happens in the portal.
 #          A definition's security type and generation must match the VM:
 #          Trusted Launch VMs (the default here) need a TrustedLaunch, V2 definition.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 #endregion

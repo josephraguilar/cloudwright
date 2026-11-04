@@ -24,3 +24,12 @@ deletes), a few guards catch what would otherwise only fail on Windows with a cl
 CI has no Az module. Tests that need an Az call define a stub with every parameter the
 modules pass (`function global:Invoke-AzRestMethod { param($Method, $Path, $Uri, $Payload) }`)
 and mock it; keep the stub identical across files, because the first file to run defines it.
+
+Release-policy tests in `Safety.Tests.ps1` use the unmodified source. Every direct script
+must throw the exact release refusal, and module imports must leave no exports even
+with `-ErrorAction Continue`. The checks include guest scripts and the Automation runbook.
+
+Legacy algorithm tests use `helpers/LegacyAzure.ps1` to make an isolated copy inside
+Pester TestDrive and remove the release block only from that copy. They use fake APIs
+and do not establish production write availability. Never run development tests in an
+administrator session; test fixtures are deliberately outside the runtime safety boundary.

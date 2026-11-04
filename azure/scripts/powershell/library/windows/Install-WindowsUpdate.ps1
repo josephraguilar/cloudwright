@@ -9,6 +9,9 @@
     Can run for a long time. Drain AVD hosts first.
 #>
 param([string]$Restart = 'no')
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $session = New-Object -ComObject Microsoft.Update.Session
 $found = $session.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software' and IsHidden=0").Updates
 if ($found.Count -eq 0) { 'No updates pending.'; exit 0 }

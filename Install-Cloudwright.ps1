@@ -56,6 +56,10 @@ foreach ($required in 'Cloudwright.psd1', 'Cloudwright.psm1', 'learn/Start-MsScr
         throw "Incomplete Cloudwright checkout: missing $required."
     }
 }
+$manifest = Import-PowerShellDataFile (Join-Path $sourceRoot 'Cloudwright.psd1')
+if ($manifest.PrivateData['CloudwrightSafetyBaseline'] -ne 2) {
+    throw 'This checkout predates mandatory Cloudwright safe mode. Use the reviewed release.'
+}
 #endregion
 
 #region 2. Check ownership before updating ------------------------------------

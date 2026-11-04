@@ -99,6 +99,9 @@ param(
 #region 2. Setup and checks ---------------------------------------------------
 #   WHAT   Modules, context, resource group region, image, quota, credential rules.
 #   WHY    Everything that can fail cheaply fails here, before a NIC exists.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot '..' 'modules' 'AzHelpers' 'AzHelpers.psd1') -Force -Verbose:$false

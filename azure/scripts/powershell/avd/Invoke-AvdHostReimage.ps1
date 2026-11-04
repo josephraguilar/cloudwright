@@ -162,6 +162,9 @@ param(
 #   WHY    ConfirmImpact High means PowerShell prompts before the destructive steps
 #          unless you pass -Confirm:$false. -Force here only means "log off users";
 #          it does not skip that prompt, on purpose.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

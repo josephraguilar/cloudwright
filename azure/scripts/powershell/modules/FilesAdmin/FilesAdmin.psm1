@@ -6,6 +6,9 @@
 #   GOTCHA A quota can grow freely but never drops below what is stored. Premium
 #          shares bill for the quota, not the usage, and start at 100 GiB.
 #          Nothing here deletes an account, a share or a file.
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 #endregion

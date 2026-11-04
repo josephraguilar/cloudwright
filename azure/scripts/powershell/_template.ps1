@@ -39,6 +39,9 @@ param(
 #          the same whether you were already logged in or not.
 #   GOTCHA When this file lives in a service folder (avd/, backup/) the module
 #          path is '..', 'modules', ...
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 

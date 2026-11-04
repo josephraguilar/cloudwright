@@ -7,6 +7,9 @@
     Status: Untested
 #>
 param([string]$MinFreePercent = '10')
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 $min = [int]$MinFreePercent
 $low = 0
 Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object {

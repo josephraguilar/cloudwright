@@ -9,6 +9,9 @@
 param()
 
 # --- NSGs and rules -----------------------------------------------------------
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 function New-NsgPage {
     $page = @{ Key = 'NavNsg'; Form = New-Form; Groups = @() }
     $form = $page.Form

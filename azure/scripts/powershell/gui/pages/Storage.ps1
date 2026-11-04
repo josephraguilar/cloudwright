@@ -11,6 +11,9 @@
 param()
 
 # --- Azure Files: list --------------------------------------------------------
+# Mandatory release block: no Azure initialization, authentication, or administration.
+throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+
 function New-FilesListPage {
     $page = @{ Key = 'NavFilesList'; Accounts = @() }
     $root = New-PageRoot -Title 'Azure Files' -Lead 'Storage accounts that hold file shares. Select one to see its shares with usage against quota. A share near its quota is the early warning for full FSLogix profiles.'

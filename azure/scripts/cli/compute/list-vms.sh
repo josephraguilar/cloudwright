@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
+# The legacy query is intentionally unreachable until the Azure read-only review.
+# shellcheck disable=SC2317
 # Lists VMs in the current subscription with power state and IPs.
 # Usage: ./list-vms.sh [resource-group]
+
+printf '%s\n' 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' >&2
+exit 1
 
 # ---- 1. Safety flags --------------------------------------------------------
 #   WHAT   -e exit on error, -u error on unset variable, -o pipefail fail a pipe
