@@ -25,6 +25,12 @@ CI has no Az module. Tests that need an Az call define a stub with every paramet
 modules pass (`function global:Invoke-AzRestMethod { param($Method, $Path, $Uri, $Payload) }`)
 and mock it; keep the stub identical across files, because the first file to run defines it.
 
+`ReadOnly.Tests.ps1` covers the read-only console in `readonly/` against fake Az modules
+written to disk (`helpers/FakeAz.ps1`): the allowlist, a parse of the source that admits
+only reviewed commands and one gateway invocation, refusals, sign-in and context checks,
+every report, and a scripted console run. Fake write commands fail the test if reached.
+Its metadata test runs only when the real Az modules are installed.
+
 Release-policy tests in `Safety.Tests.ps1` use the unmodified source. Every direct script
 must throw the exact release refusal, and module imports must leave no exports even
 with `-ErrorAction Continue`. The checks include guest scripts and the Automation runbook.

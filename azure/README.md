@@ -1,12 +1,14 @@
 # azure
 
-Part of [Cloudwright](../README.md). Azure/AVD execution is disabled until a reviewed
-read-only mode is available. `cloudwright azure` and direct entry points refuse.
+Part of [Cloudwright](../README.md). `cloudwright azure` opens the separate
+[read-only console](readonly/README.md): subscriptions, VMs, AVD host pools, session
+hosts, user sessions, an AVD health check and networks. It changes nothing.
 
-**Every runtime PowerShell file refuses before initialization, authentication or any
-administration.** This includes direct scripts, module imports, GUI pages, guest scripts
-and the Automation runbook. The CLI entry point also refuses. There is no supported
-override. The legacy code and examples below are retained for review, not operational use.
+**Every legacy runtime PowerShell file under `scripts/` and `runbooks/` still refuses before
+initialization, authentication or any administration.** This includes direct scripts,
+module imports, GUI pages, guest scripts and the Automation runbook. The CLI entry point
+also refuses. There is no supported override. The legacy code and examples below are
+retained for review, not operational use; the read-only mode does not load them.
 Bicep templates are reference material; Cloudwright does not deploy them. Running external
 Azure commands or manually deploying templates remains outside the software's control.
 Already deployed runbooks and older installed copies are unaffected. See the

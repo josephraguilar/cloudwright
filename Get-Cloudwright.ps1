@@ -90,7 +90,7 @@ Any existing cloudwright command has NOT been updated or disabled. It can still 
 Run this command to install into a new directory and re-point cloudwright without opening a tenant tool:
 $reinstall
 Then open a fresh PowerShell session and run: cloudwright version
-Confirm it reports 0.2.2 before using it. Your old files and local settings remain at '$destination'; transfer only the settings you need.
+Confirm it reports 0.3.0 before using it. Your old files and local settings remain at '$destination'; transfer only the settings you need.
 "@
         }
         foreach ($file in $requiredFiles) {

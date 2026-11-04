@@ -9,7 +9,8 @@ BeforeDiscovery {
     $targets += @(foreach ($path in $writes) {
         @{ Kind = 'M365Script'; Target = [IO.Path]::GetRelativePath($root, $path); Expected = 'Microsoft 365 safe mode' }
     })
-    foreach ($kind in 'M365Change', 'M365Guard', 'M365Graph', 'M365Scope', 'M365Hudu', 'M365Password', 'M365Browser', 'M365Command', 'M365Exchange', 'LearnSource', 'LearnGraph', 'LearnGenerate', 'Launcher') {
+    foreach ($kind in 'M365Change', 'M365Guard', 'M365Graph', 'M365Scope', 'M365Hudu', 'M365Password', 'M365Browser', 'M365Command', 'M365Exchange', 'LearnSource', 'LearnGraph', 'LearnGenerate',
+        'AzureReadCommand', 'AzureReadParameter', 'AzureReadPath', 'AzureReadContext') {
         $expected = switch ($kind) {
             'M365Browser' { 'Safe mode: opening' }
             'M365Command' { 'Safe mode' }
@@ -17,7 +18,10 @@ BeforeDiscovery {
             'LearnSource' { 'lookups must be read-only' }
             'LearnGraph' { 'Learn refused a Graph session' }
             'LearnGenerate' { 'Answers must be single-line' }
-            'Launcher' { 'Azure/AVD administration is disabled' }
+            'AzureReadCommand' { "Azure read-only mode refuses 'Invoke-AzVMRunCommand'" }
+            'AzureReadParameter' { 'refuses parameter -UserData for Get-AzVM' }
+            'AzureReadPath' { 'refuses this Invoke-AzRestMethod request' }
+            'AzureReadContext' { 'refuses to continue: the Azure context' }
             default { 'Microsoft 365 safe mode' }
         }
         $targets += @{ Kind = $kind; Target = '.'; Expected = $expected }
@@ -75,6 +79,19 @@ BeforeAll {
         $folder = Join-Path $scratch "modules/$name"
         $null = New-Item -ItemType Directory -Path $folder -Force
         "@{ ModuleVersion = '1.0.0'; FunctionsToExport = @() }" | Set-Content (Join-Path $folder "$name.psd1")
+    }
+    # Azure read-only probes: Get-AzContext reports another subscription than the
+    # verified session; every other command terminates the child with a canary.
+    $canary = "{ [Console]::WriteLine('SIDE-EFFECT-CANARY'); [Environment]::Exit(91) }"
+    $fakeAz = @{
+        'Az.Accounts' = "function Get-AzContext { [pscustomobject]@{ Tenant = [pscustomobject]@{ Id = 'aaaaaaaa-0000-0000-0000-000000000001' }; Account = [pscustomobject]@{ Id = 'reader@fixture.example' }; Subscription = [pscustomobject]@{ Id = 'bbbbbbbb-0000-0000-0000-000000000002' } } }`nfunction Invoke-AzRestMethod $canary"
+        'Az.Compute' = "function Get-AzVM $canary`nfunction Invoke-AzVMRunCommand $canary"
+    }
+    foreach ($name in $fakeAz.Keys) {
+        $folder = Join-Path $scratch "modules/$name"
+        $null = New-Item -ItemType Directory -Path $folder -Force
+        Set-Content (Join-Path $folder "$name.psm1") $fakeAz[$name]
+        "@{ RootModule = '$name.psm1'; ModuleVersion = '99.0.0'; FunctionsToExport = '*' }" | Set-Content (Join-Path $folder "$name.psd1")
     }
     # Parent-side parallelism saves startup time. Each tested operation still gets
     # its own pwsh process, isolated preferences and an unwrapped top-level call.

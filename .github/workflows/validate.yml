@@ -41,7 +41,7 @@ jobs:
               $settings.Settings = './PSScriptAnalyzerSettings.psd1'
               './src'; './Start-MsScripter.ps1'
             }
-            'azure' { './scripts/powershell'; './runbooks' }
+            'azure' { './scripts/powershell'; './runbooks'; './readonly' }
             'm365' { './scripts/powershell'; './Install-Toolkit.ps1'; './Start-Toolkit.ps1' }
           }
           $results = @(foreach ($tree in $trees) {

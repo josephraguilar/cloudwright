@@ -1,11 +1,11 @@
 # Cloudwright safe mode
 
-Cloudwright 0.2.2 applies safe mode to **all of Cloudwright**. Learn generates text and
+Cloudwright 0.3.0 applies safe mode to **all of Cloudwright**. Learn generates text and
 performs optional read lookups; option 3 / `cloudwright m365` permits tenant inspections
-and reports. Azure/AVD execution is blocked pending a reviewed read-only implementation.
-There is no supported flag, environment variable, menu toggle, or approval that enables
-Microsoft 365 writes or Azure execution. Local setup, settings, reports, and logs can
-still write files.
+and reports; option 2 / `cloudwright azure` opens a separate read-only Azure/AVD console.
+The legacy Azure administration code stays blocked. There is no supported flag,
+environment variable, menu toggle, or approval that enables Microsoft 365 writes or the
+legacy Azure code. Local setup, settings, reports, and logs can still write files.
 
 ## Enforcement
 
@@ -49,15 +49,32 @@ See Microsoft's documentation for [Graph authentication and application isolatio
 [Exchange command importing](https://learn.microsoft.com/powershell/module/exchangepowershell/connect-exchangeonline),
 and [Exchange RBAC](https://learn.microsoft.com/exchange/permissions-exo/permissions-exo).
 
-**Azure execution is disabled, including direct calls.** Every runtime PowerShell file
+**Azure reads go through one allowlisted gateway.** The read-only console in
+`azure/readonly` is new code and never loads the legacy modules. It may call 16 named Az
+commands, each only from its expected Az module and only with its listed parameters;
+names, abbreviations and aliases outside that list are refused before any command is
+looked up. Get commands that return keys, tokens, VM user data or run-command output are
+not on the list, and reports return selected fields only, so a host pool's registration
+token is never shown. Sign-in, subscription selection and context autosave are pinned to
+`-Scope Process`, and sign-in is refused unless Az confirms process mode. The tenant and
+subscription must be GUIDs; the active context must be the account that just signed in,
+and every report re-checks tenant, account and subscription before reading. The only
+REST call is GET of the selected subscription's own permissions, used to warn when the
+account could change resources. A parse of the source in the tests admits only reviewed
+built-ins, the module's own functions and exactly one dynamic call: the gateway's.
+**The account's own Azure permissions are not reduced**: prefer an account with the Reader
+role. See [the read-only console's README](../azure/readonly/README.md) for its limits.
+
+**Legacy Azure execution is disabled, including direct calls.** Every runtime PowerShell file
+under `azure/scripts` and `azure/runbooks`
 starts with a separate scope that sets `$ErrorActionPreference = 'Stop'` and throws:
 scripts, modules, GUI pages, guest scripts and the Automation runbook. Module loading
 stops without exporting functions; `Import-Module` can suppress its caller-facing error
 without loading the module. The CLI returns an error when sourced or executed.
-M365 authorization and Learn validation checks also set their own error preference.
+M365 authorization, Learn validation and Azure read-only refusals also set their own error preference.
 There is no supported override. The tested preference combinations are listed below;
 this is not a guarantee about every PowerShell version or host configuration.
-The retained implementation still needs review before any read-only Azure features return.
+The retained administration implementation needs separate review before any Azure writes return.
 Bicep templates and documentation commands are reference material: Cloudwright cannot
 constrain someone invoking external Azure tools or deploying a template separately.
 Learn generates text only; copied commands can change or delete resources when executed
@@ -80,7 +97,7 @@ keep local settings and reports out of Git and shared folders.
 
 The new bootstrap refuses cached snapshots without safety baseline 3 and preserves their
 files. Install the reviewed release into a **new `-InstallPath`**, transfer only necessary
-local settings, and verify `cloudwright version` reports `0.2.2`. A previously installed
+local settings, and verify `cloudwright version` reports `0.3.0`. A previously installed
 command still uses its old checkout until reinstalled. **A bootstrap refusal does not
 disable that old command.** The refusal now prints a complete command to install into a
 fresh directory and replace the launcher registration, preserving custom module paths.
@@ -112,8 +129,9 @@ The root refusal matrix runs each operation in a fresh PowerShell 7.6.9 process 
 `try/catch` around the call. It checks default settings; common `-ErrorAction`
 SilentlyContinue, Ignore and Inquire; global error preferences and wildcard
 `PSDefaultParameterValues` set to SilentlyContinue/Ignore; and dot-sourced script calls
-under those global preferences. It covers all Azure runtime scripts and module/manifest
-imports, all M365 write entry scripts, and direct authorization/generation checks.
+under those global preferences. It covers all legacy Azure runtime scripts and module/manifest
+imports, all M365 write entry scripts, direct authorization/generation checks, and the
+Azure read-only gateway's command, parameter, REST-path and changed-context refusals.
 Each probe requires its expected refusal text and no protected-body/side-effect marker.
 M365 entry tests currently match a shared refusal prefix; they do not independently prove
 guard position or exercise every post-sign-in validation under suppressed errors.

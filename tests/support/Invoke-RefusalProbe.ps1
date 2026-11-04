@@ -82,8 +82,13 @@ if ($Kind -in 'AzureScript', 'AzureModule', 'M365Script') {
 } elseif ($Kind -like 'Learn*') {
     Import-Module (Join-Path $Repository 'learn/src/MsScripter/MsScripter.psd1') -Force
     if ($Kind -eq 'LearnGenerate') { $task = Get-MsTask entra.apps.new-app-registration }
-} elseif ($Kind -eq 'Launcher') {
-    Import-Module (Join-Path $Repository 'Cloudwright.psd1') -Force
+} elseif ($Kind -like 'AzureRead*') {
+    # A verified session; the scratch Get-AzContext then reports another subscription.
+    Import-Module (Join-Path $Repository 'azure/readonly/AzureReadOnly/AzureReadOnly.psd1') -Force
+    & (Get-Module AzureReadOnly) {
+        $script:Session = [pscustomobject]@{ TenantId = 'aaaaaaaa-0000-0000-0000-000000000001'; AccountId = 'reader@fixture.example'
+            SubscriptionId = 'bbbbbbbb-0000-0000-0000-000000000001'; SubscriptionName = 'fixture' }
+    }
 }
 
 $common = @{}
@@ -130,7 +135,10 @@ switch ($Kind) {
     'LearnSource' { & (Get-Module MsScripter) { param($options) Resolve-MsSource -Source @{ Cmdlet = 'Remove-CloudwrightCanary' } -Answers @{} -Fields @() @options } $common }
     'LearnGraph' { & (Get-Module MsScripter) { param($options) Assert-MsGraphContext @options } $common }
     'LearnGenerate' { New-MsScript -Task $task -Answers @{ DisplayName = "app`nInvoke-CloudwrightCanary" } -WithRollback @common }
-    'Launcher' { Start-Cloudwright -Area azure -Console @common }
+    'AzureReadCommand' { & (Get-Module AzureReadOnly) { param($options) Invoke-AzReadCommand 'Invoke-AzVMRunCommand' @{} @options } $common }
+    'AzureReadParameter' { & (Get-Module AzureReadOnly) { param($options) Invoke-AzReadCommand 'Get-AzVM' @{ UserData = $true } @options } $common }
+    'AzureReadPath' { & (Get-Module AzureReadOnly) { param($options) Invoke-AzReadCommand 'Invoke-AzRestMethod' @{ Path = '/subscriptions/bbbbbbbb-0000-0000-0000-000000000001/resourceGroups/fixture?api-version=2022-04-01' } @options } $common }
+    'AzureReadContext' { Get-AzReadOnlyVm @common }
     default { [Console]::WriteLine('UNKNOWN-PROBE'); exit 95 }
 }
 [Console]::WriteLine('CALLER-CONTINUED'); exit 96

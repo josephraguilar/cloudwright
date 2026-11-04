@@ -1,16 +1,18 @@
 # Cloudwright safety review
 
 Date: 2026-11-03. Original baseline: `fbb7f367e129d363f6e609680be204703c22cf0a`.
-Candidate: version 0.2.2 on `safety/read-only-audit`.
+Candidate: version 0.3.0 on `safety/azure-read-only`, which adds the Azure/AVD read-only
+console to the 0.2.2 candidate `703168b` on `safety/read-only-audit`. The 0.3.0 addition has
+not yet had an independent review; see [its section](#030-azureavd-read-only-console).
 
 ## Decision and scope
 
 **Do not treat this repository as approved for routine Global Administrator use.**
-The owner confirmed safe mode covers all of Cloudwright. The interface permits Learn and
-Microsoft 365 inspection/reporting. Azure execution is blocked in the root launcher and
-every runtime entry file, including direct scripts, modules, guest scripts, GUI pages,
-the Automation runbook and CLI. Its legacy bodies remain for review behind enforced
-refusals. Learn generates text; running that text or deploying reference Bicep with external
+The owner confirmed safe mode covers all of Cloudwright. The interface permits Learn,
+Microsoft 365 and (from 0.3.0) Azure/AVD inspection/reporting. Legacy Azure execution is
+blocked in every runtime entry file, including direct scripts, modules, guest scripts, GUI
+pages, the Automation runbook and CLI. Its legacy bodies remain for review behind enforced
+refusals; the 0.3.0 read-only console is separate code that does not load them. Learn generates text; running that text or deploying reference Bicep with external
 tools can change resources. Local setup, settings and report files can change.
 
 Microsoft 365 script/API mutations are blocked. **Accepting Microsoft's consent prompt
@@ -121,6 +123,45 @@ The deferred onboarding helper relocation was accepted for this read-only releas
 Opus recommended publication after R5-1 and owner approval, with focused delta checks
 instead of another full review round. This recommendation is for the constrained read-only
 release, not production tenant validation or routine Global Administrator use.
+
+## 0.3.0: Azure/AVD read-only console
+
+The owner asked for a read-only Azure/AVD version after 0.2.2. It is new code in
+`azure/readonly`, opened by `cloudwright azure` on every platform. The legacy Azure files
+keep their blocks and their unchanged refusal tests; the new code never imports them.
+
+- **Allowlist and gateway.** 16 Az commands with their expected module and exact parameter
+  names. Everything else, including abbreviations, aliases and common parameters, is
+  refused before command lookup. Get commands that return secrets are excluded, and
+  `Get-AzVM -UserData` is not admitted. Reports return projected fields only.
+- **Process-only sign-in.** `Disable-AzContextAutosave`, `Connect-AzAccount` and
+  `Set-AzContext` are pinned to `-Scope Process`, with `-WhatIf/-Confirm` forced off where
+  supported. Sign-in is refused unless Az reports process mode.
+- **Target verification.** Tenant and subscription are GUIDs. After sign-in, the active
+  context must be the account that just signed in, in the requested tenant and subscription;
+  each report re-checks tenant, account and subscription and refuses on drift. AVD calls also
+  pass the verified subscription explicitly.
+- **One REST call.** `Invoke-AzRestMethod` is pinned to GET of the selected subscription's
+  own `Microsoft.Authorization/permissions` path. Its result warns when the account could
+  change resources; it does not reduce those permissions.
+
+Evidence (local, 2026-11-04): the Azure suite adds 70 tests against fake Az modules on disk.
+A source parse admits only reviewed built-ins, the module's own functions and one dynamic
+invocation (the gateway's), requires a literal allowlisted name at every gateway call, and
+rejects locals spelled like parameters. That last rule exists because the first draft had a
+real bug: a local `$subscriptionId` silently replaced the `-SubscriptionId` parameter, which
+disabled the subscription-mismatch refusal. The test caught it. Fake write commands fail the
+test if reached. The root refusal matrix adds gateway command, parameter, REST-path and
+changed-context refusals under eight error-preference settings (default, common, global and wildcard defaults). Every allowlisted
+command and parameter was checked against the current real Az modules (Az.Accounts 5.5.4,
+Az.Compute 11.11.0, Az.DesktopVirtualization 6.0.0, Az.Network 8.4.0, Az.Resources 10.2.2).
+With those modules and no network, the gateway disabled autosave for the process (Az
+reported no cache file) and left the saved Az settings unchanged.
+
+Limits: no live tenant has been read; real sign-in, WAM, Lighthouse-delegated subscriptions
+and large estates are unverified. The Windows desktop interface stays disabled. This guard
+cannot constrain other code in the same PowerShell session. **Independent review of this
+addition is pending; do not publish 0.3.0 before it.**
 
 ## Other findings that must remain blocked or be fixed before writes return
 

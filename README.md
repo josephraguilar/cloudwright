@@ -4,9 +4,10 @@ A PowerShell toolkit for learning Microsoft commands and administering Azure, Az
 Virtual Desktop, and Microsoft 365.
 
 **Safe release:** option 3 / `cloudwright m365` permits inspection and reporting;
-Microsoft 365 mutation scripts and GDAP approval actions are blocked. Azure/AVD
-execution is blocked in the launcher, console/GUI, standalone scripts, modules,
-guest scripts, Automation runbook and CLI entry point until its read-only mode is reviewed.
+Microsoft 365 mutation scripts and GDAP approval actions are blocked. Option 2 /
+`cloudwright azure` opens a separate read-only Azure/AVD console. The legacy Azure
+administration scripts, modules, desktop interface, guest scripts, Automation runbook
+and CLI entry point remain blocked.
 **Accepting a Microsoft consent prompt can still change tenant permission grants.**
 Use a reader account and decline organizational consent unless separately intended.
 Read [the safety boundary and upgrade instructions](docs/SAFETY.md) before signing in.
@@ -14,7 +15,7 @@ Read [the safety boundary and upgrade instructions](docs/SAFETY.md) before signi
 ```powershell
 cloudwright                 # Choose an area
 cloudwright learn           # Build and understand commands
-cloudwright azure           # Refused in this safe release
+cloudwright azure           # Inspect Azure and AVD in read-only safe mode
 cloudwright m365            # Inspect Microsoft 365 in read-only safe mode
 ```
 
@@ -41,7 +42,7 @@ The new bootstrap requires safety baseline 3 and refuses older cached snapshots,
 including the earlier candidates with suppressible refusal errors. Existing installed commands and deployed
 runbooks are not upgraded automatically. A refusal leaves the old `cloudwright` command
 active. Follow the complete replacement command printed by the refusal, then open a fresh
-PowerShell session and confirm `cloudwright version` reports `0.2.2` before using it.
+PowerShell session and confirm `cloudwright version` reports `0.3.0` before using it.
 
 After the first install, just run `cloudwright` in any PowerShell 7 session. To
 download without opening the menu or to choose a location, save the bootstrap and run:
@@ -94,16 +95,18 @@ discovery in future sessions. There is no PowerShell Gallery release at this sta
 | Command | Tool | First-use requirements |
 | --- | --- | --- |
 | `cloudwright learn` | Command builder from ms-scripter; explanations, verification/rollback examples, and offline study | PowerShell alone works; Azure/Graph lookup modules are optional |
-| `cloudwright azure` | Azure/AVD administration; disabled in this safe release | Refuses before sign-in |
+| `cloudwright azure` | Read-only Azure/AVD console: subscriptions, VMs, host pools, session hosts, user sessions, AVD health check, networks | Five Az modules (it prints the install command); a tenant ID; Reader role recommended |
 | `cloudwright m365` | Exchange, Entra, GDAP, security and onboarding inspections/reports | First-use setup checks modules and prompts for local settings; mutation tasks are blocked |
 
-Windows opens each area's existing desktop interface by default. Other platforms
-use its console interface. `-Console` selects the text interface on Windows too:
+Windows opens the Learn and Microsoft 365 desktop interfaces by default. Other platforms
+use their console interface. `-Console` selects the text interface on Windows too. Azure
+always uses its read-only console:
 
 ```powershell
 cloudwright learn -Contoso -Console   # Fictional tenant; no connections
 cloudwright learn -Console -NoSignIn  # Type values without optional sign-in prompts
-cloudwright azure -Console           # Refused in this safe release
+cloudwright azure -TenantId <tenant-id> -SubscriptionId <subscription-id>
+cloudwright azure -TenantId <tenant-id> -DeviceCode   # Sign in on another device
 cloudwright m365 -Console
 cloudwright m365 -Setup               # Revisit Microsoft 365 setup
 cloudwright help
@@ -111,11 +114,13 @@ cloudwright version
 ```
 
 `cloudwright m365 -WhatIf` previews the launcher entry point without opening it.
-Azure administration is refused even with `-WhatIf`; M365 mutation scripts also refuse
-instead of running their legacy dry-run workflows.
+M365 mutation scripts refuse instead of running their legacy dry-run workflows.
 
-Azure entry points refuse execution even when called directly, and its modules refuse
-import. Each block sets its own error preference before refusing; the tested settings and
+The Azure read-only console runs only an allowlist of read commands through one checked
+gateway, keeps its sign-in in that PowerShell process, and verifies the tenant and
+subscription before every report. See [its README](azure/readonly/README.md).
+Legacy Azure entry points refuse execution even when called directly, and their modules
+refuse import. Each block sets its own error preference before refusing; the tested settings and
 runtime limits are documented in [SAFETY.md](docs/SAFETY.md). Legacy bodies remain for review. Bicep and
 documentation commands are reference material; Cloudwright does not deploy them.
 
@@ -134,7 +139,7 @@ Cloudwright.psd1 / Cloudwright.psm1  Public command and launcher
 Install-Cloudwright.ps1             Current-user command installation
 Get-Cloudwright.ps1                 Anonymous download, installation, and launch
 learn/                             ms-scripter engine, catalog, UI, and tests
-azure/                             Azure/AVD modules, scripts, Bicep, and tests
+azure/                             Azure/AVD read-only console (readonly/), blocked legacy scripts, Bicep, tests
 m365/                              Microsoft 365 modules, scripts, UI, and tests
 tests/                             Launcher and installation tests
 docs/MIGRATION.md                  Source commits and consolidation decisions

@@ -49,7 +49,8 @@ function Start-Cloudwright {
         Each area starts in a separate PowerShell process. Windows uses the existing
         desktop interface by default; -Console and other platforms use a text menu.
         Learn builds commands for you to read and copy. It never runs generated commands.
-        Azure administration is disabled in this release. Microsoft 365 permits reviewed reads only.
+        Azure/AVD opens a read-only console of reviewed inspections; its administration
+        scripts stay disabled. Microsoft 365 permits reviewed reads only.
         Opening the top-level menu, help, or version does not sign in or install dependencies.
         -WhatIf previews which entry point would open; it does not run an area's tenant plan.
     .PARAMETER Area
@@ -64,9 +65,11 @@ function Start-Cloudwright {
         Microsoft 365 only: rerun its existing dependency and local-settings setup.
         The Microsoft 365 launcher also offers setup when dependencies/settings are missing.
     .PARAMETER TenantId
-        Azure only: select the tenant GUID passed to the Azure entry point.
+        Azure only: the tenant GUID to sign in to. Prompted for when omitted.
     .PARAMETER SubscriptionId
-        Azure only: select the subscription passed to the Azure entry point.
+        Azure only: the subscription GUID to open. Choose one after sign-in when omitted.
+    .PARAMETER DeviceCode
+        Azure only: sign in with a device code instead of a browser window.
     .EXAMPLE
         cloudwright
     .EXAMPLE
@@ -92,18 +95,21 @@ function Start-Cloudwright {
         [Parameter()]
         [ValidatePattern('^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$')]
         [string]$TenantId,
-        [Parameter()] [ValidateNotNullOrEmpty()] [string]$SubscriptionId
+        [Parameter()]
+        [ValidatePattern('^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$')]
+        [string]$SubscriptionId,
+        [Parameter()] [switch]$DeviceCode
     )
 
     # WHAT Reject flags for a different area before prompting, signing in, or launching.
     $allowed = switch ($Area) {
         'learn' { @('Console', 'Contoso', 'NoSignIn') }
-        'azure' { @('Console', 'TenantId', 'SubscriptionId') }
+        'azure' { @('Console', 'TenantId', 'SubscriptionId', 'DeviceCode') }
         'm365'  { @('Console', 'Setup') }
         'menu'  { @('Console') }
         default { @() }
     }
-    foreach ($name in 'Console', 'Contoso', 'NoSignIn', 'Setup', 'TenantId', 'SubscriptionId') {
+    foreach ($name in 'Console', 'Contoso', 'NoSignIn', 'Setup', 'TenantId', 'SubscriptionId', 'DeviceCode') {
         if ($PSBoundParameters.ContainsKey($name) -and $name -notin $allowed) {
             throw "-$name is not supported for '$Area'. Run cloudwright help for usage."
         }
@@ -115,7 +121,7 @@ function Start-Cloudwright {
         Write-Host ''
         Write-Host 'Cloudwright' -ForegroundColor Cyan
         Write-Host '  1. Learn Microsoft commands'
-        Write-Host '  2. Azure and AVD (disabled in the safe release)'
+        Write-Host '  2. Azure and AVD (SAFE MODE: read-only)'
         Write-Host '  3. Manage Microsoft 365 (SAFE MODE: read-only)'
         Write-Host '  Q. Quit'
         while ($Area -eq 'menu') {
@@ -130,11 +136,9 @@ function Start-Cloudwright {
         }
     }
 
-    if ($Area -eq 'azure') {
-        & { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD administration is disabled pending a reviewed read-only implementation.' }
-    }
-
-    $useConsole = $Console -or -not $IsWindows
+    # WHAT Azure/AVD always uses the read-only console. Its legacy desktop interface
+    #      and administration scripts stay blocked.
+    $useConsole = $Console -or -not $IsWindows -or $Area -eq 'azure'
     $scriptArguments = @()
     switch ($Area) {
         'learn' {
@@ -144,9 +148,10 @@ function Start-Cloudwright {
             if ($NoSignIn) { $scriptArguments += '-NoSignIn' }
         }
         'azure' {
-            $relativePath = if ($useConsole) { 'azure/scripts/powershell/Start-AvdConsole.ps1' } else { 'azure/scripts/powershell/Start-AvdGui.ps1' }
+            $relativePath = 'azure/readonly/Start-AzureReadOnly.ps1'
             if ($TenantId) { $scriptArguments += @('-TenantId', $TenantId) }
             if ($SubscriptionId) { $scriptArguments += @('-SubscriptionId', $SubscriptionId) }
+            if ($DeviceCode) { $scriptArguments += '-UseDeviceAuthentication' }
         }
         'm365' {
             $relativePath = 'm365/Start-Toolkit.ps1'

@@ -7,7 +7,7 @@ BeforeAll {
     foreach ($file in 'Cloudwright.psd1', 'Cloudwright.psm1', 'Install-Cloudwright.ps1') {
         Copy-Item -LiteralPath (Join-Path $script:Root $file) -Destination $script:Fixture
     }
-    foreach ($file in 'learn/Start-MsScripter.ps1', 'azure/scripts/powershell/Start-AvdConsole.ps1', 'm365/Start-Toolkit.ps1', 'm365/scripts/powershell/modules/M365Helpers/Safety.ps1') {
+    foreach ($file in 'learn/Start-MsScripter.ps1', 'azure/scripts/powershell/Start-AvdConsole.ps1', 'azure/readonly/Start-AzureReadOnly.ps1', 'm365/Start-Toolkit.ps1', 'm365/scripts/powershell/modules/M365Helpers/Safety.ps1') {
         $path = Join-Path $script:Fixture $file
         $null = New-Item -ItemType Directory -Path (Split-Path $path) -Force
         Set-Content -LiteralPath $path -Value "throw 'A tenant entry point must not run during installation.'"
@@ -30,7 +30,7 @@ Describe 'Cloudwright download bootstrap' {
 
     It 'downloads one pinned snapshot anonymously and installs a working command' {
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
-        cloudwright version | Should -Be '0.2.2'
+        cloudwright version | Should -Be '0.3.0'
         $record = Get-Content (Join-Path $script:Destination 'Cloudwright.download.json') -Raw | ConvertFrom-Json
         $record.Commit | Should -Be $script:Commit
         $record.SafetyBaseline | Should -Be 3
@@ -53,7 +53,7 @@ Describe 'Cloudwright download bootstrap' {
             Invoke-Expression ('& {' + $code + "`n} -InstallPath `$script:Destination -ModulePath `$script:ModuleBase -NoLaunch")
         } finally { Pop-Location }
         $ErrorActionPreference | Should -Be $before
-        cloudwright version | Should -Be '0.2.2'
+        cloudwright version | Should -Be '0.3.0'
     }
 
     It 'accepts a literal text-to-IEX pipeline with no script invocation context' {
@@ -75,7 +75,7 @@ Describe 'Cloudwright download bootstrap' {
         $LASTEXITCODE | Should -Be 0 -Because $output
         # Read-Host prompts use a host stream that Windows does not include in redirected output.
         $output | Should -Match '1\. Learn Microsoft commands'
-        $output | Should -Match '2\. Azure and AVD \(disabled in the safe release\)'
+        $output | Should -Match '2\. Azure and AVD \(SAFE MODE: read-only\)'
         $output | Should -Match '3\. Manage Microsoft 365'
         $output | Should -Match 'Q\. Quit'
     }
@@ -117,7 +117,7 @@ Describe 'Cloudwright download bootstrap' {
         $script:ModuleBase = Join-Path $TestDrive "modules' files"
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
         $manifest = Join-Path $script:Destination 'Cloudwright.psd1'
-        (Get-Content $manifest -Raw).Replace("'0.2.2'", "'0.1.0'") | Set-Content $manifest
+        (Get-Content $manifest -Raw).Replace("'0.3.0'", "'0.1.0'") | Set-Content $manifest
         Copy-Item $manifest (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.psd1') -Force
         Import-Module (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.psd1') -Force
         @{ Tool = 'Cloudwright'; SchemaVersion = 1; Commit = $script:Commit } |
@@ -139,7 +139,7 @@ Describe 'Cloudwright download bootstrap' {
         # Execute the exact suggested command with fake downloads and tenant entry
         # points that throw if launched. Its custom module path contains a quote.
         Invoke-Expression $command[0]
-        cloudwright version | Should -Be '0.2.2'
+        cloudwright version | Should -Be '0.3.0'
         $location = Get-Content (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.location.json') -Raw | ConvertFrom-Json
         $location.RepositoryRoot | Should -Not -Be $script:Destination
         Test-Path (Join-Path $location.RepositoryRoot 'Cloudwright.psd1') | Should -BeTrue
@@ -152,7 +152,7 @@ Describe 'Cloudwright download bootstrap' {
             cloudwright version
         } -args $script:ModuleBase 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 0 -Because $output
-        $output.Trim() | Should -Be '0.2.2'
+        $output.Trim() | Should -Be '0.3.0'
     }
 
     It 'refuses to replace an unrelated directory' {

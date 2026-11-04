@@ -24,7 +24,7 @@ Describe 'Cloudwright command contract' {
     }
 
     It 'reports a version without launching a tool' {
-        cloudwright version | Should -Be '0.2.2'
+        cloudwright version | Should -Be '0.3.0'
         Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 0 -Exactly
     }
 
@@ -42,14 +42,28 @@ Describe 'Cloudwright command contract' {
         }
     }
 
-    It 'refuses Azure even with tenant, subscription, and console flags' {
-        { cloudwright azure -Console -TenantId '00000000-0000-0000-0000-000000000000' -SubscriptionId 'lab subscription' } | Should -Throw '*Azure/AVD administration is disabled*'
-        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 0
+    It 'opens Azure in the read-only console with tenant, subscription and device-code sign-in' {
+        cloudwright azure -TenantId '00000000-0000-0000-0000-000000000000' -SubscriptionId '11111111-1111-1111-1111-111111111111' -DeviceCode
+        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 1 -Exactly -ParameterFilter {
+            $ScriptPath -match '[\\/]azure[\\/]readonly[\\/]Start-AzureReadOnly\.ps1$' -and -not $Sta -and
+            ($ScriptArguments -join ' ') -eq '-TenantId 00000000-0000-0000-0000-000000000000 -SubscriptionId 11111111-1111-1111-1111-111111111111 -UseDeviceAuthentication'
+        }
     }
 
-    It 'refuses Azure from the main menu before launching a child' {
+    It 'never routes Azure to the blocked legacy console or desktop interface' {
+        cloudwright azure
+        cloudwright azure -Console
         Mock Read-Host -ModuleName Cloudwright { '2' }
-        { cloudwright } | Should -Throw '*Azure/AVD administration is disabled*'
+        cloudwright
+        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 3 -Exactly -ParameterFilter {
+            $ScriptPath -match '[\\/]azure[\\/]readonly[\\/]Start-AzureReadOnly\.ps1$' -and -not $Sta -and $ScriptArguments.Count -eq 0
+        }
+        Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 3 -Exactly
+    }
+
+    It 'requires GUIDs for the Azure tenant and subscription before launching' {
+        { cloudwright azure -SubscriptionId 'lab subscription' } | Should -Throw
+        { cloudwright azure -TenantId 'contoso.example' } | Should -Throw
         Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 0
     }
 
@@ -66,6 +80,8 @@ Describe 'Cloudwright command contract' {
         { cloudwright learn -Setup } | Should -Throw '*not supported*'
         { cloudwright m365 -TenantId '00000000-0000-0000-0000-000000000000' } | Should -Throw '*not supported*'
         { cloudwright -Contoso } | Should -Throw '*not supported*'
+        { cloudwright learn -DeviceCode } | Should -Throw '*not supported*'
+        { cloudwright m365 -DeviceCode } | Should -Throw '*not supported*'
         Should -Invoke Invoke-CloudwrightProcess -ModuleName Cloudwright -Times 0 -Exactly
     }
 
@@ -119,7 +135,7 @@ Describe 'Child process isolation' {
         $module = Get-Module Cloudwright
         { & $module { param($Path) Invoke-CloudwrightProcess -ScriptPath $Path } $entry } |
             Should -Throw '*code 7*'
-        cloudwright version | Should -Be '0.2.2'
+        cloudwright version | Should -Be '0.3.0'
     }
 }
 
@@ -149,7 +165,7 @@ Describe 'Current-user launcher installation' {
             finally { Pop-Location }
         } finally { $env:PSModulePath = $previousPath }
         $fresh.ExitCode | Should -Be 0 -Because $fresh.Output
-        $fresh.Output.Trim() | Should -Be '0.2.2'
+        $fresh.Output.Trim() | Should -Be '0.3.0'
     }
 
     It 'requires Force to update and preserves other files in its installation' {
