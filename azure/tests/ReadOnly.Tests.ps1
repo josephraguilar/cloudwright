@@ -101,6 +101,7 @@ Describe 'Azure read-only source boundary' {
         $script:Types = @('string', 'int', 'bool', 'switch', 'hashtable', 'pscustomobject', 'math', 'StringComparison', 'string[]', 'object[]',
             'CmdletBinding', 'Parameter', 'ValidatePattern', 'OutputType', 'Diagnostics.CodeAnalysis.SuppressMessageAttribute')
         $script:Methods = @('Equals', 'Replace', 'ToLowerInvariant', 'Trim', 'TrimEnd', 'Substring', 'Min', 'ContainsKey')
+        $script:ForEachMembers = @('ResourceGroupName', 'Sessions')
         function Get-Ast { param($File) [System.Management.Automation.Language.Parser]::ParseFile($File.FullName, [ref]$null, [ref]$null) }
         function Get-ReboundName {
             param($Target)
@@ -162,6 +163,18 @@ Describe 'Azure read-only source boundary' {
             foreach ($n in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] }, $true)) {
                 $script:Methods | Should -Contain "$($n.Member)" -Because "$($f.Name): $($n.Extent.Text)"
             }
+            # ForEach-Object can call a method or read a member by name; only listed names, no parameters.
+            foreach ($n in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -in 'ForEach-Object', '%', 'foreach', 'Microsoft.PowerShell.Core\ForEach-Object' }, $true)) {
+                foreach ($e in @($n.CommandElements | Select-Object -Skip 1)) {
+                    $ok = $e -is [System.Management.Automation.Language.ScriptBlockExpressionAst] -or
+                        ($e -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $e.Value -in $script:ForEachMembers)
+                    $ok | Should -BeTrue -Because "$($f.Name): $($n.Extent.Text)"
+                }
+            }
+            # Members that reach the PowerShell engine itself.
+            foreach ($n in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.MemberExpressionAst] }, $true)) {
+                "$($n.Member)" | Should -Not -BeIn @('InvokeCommand', 'SessionState', 'InvokeProvider', 'Runspace', 'ExecutionContext', 'Ast', 'ScriptBlock') -Because "$($f.Name): $($n.Extent.Text)"
+            }
         }
     }
     It 'module-qualifies the built-ins the gateway relies on and returns after every refusal' {
@@ -188,7 +201,7 @@ Describe 'Azure read-only source boundary' {
                 $imports.Count | Should -Be 1
                 $imports[0].Extent.Text | Should -BeExactly "Import-Module (Join-Path `$PSScriptRoot 'AzureReadOnly' 'AzureReadOnly.psd1') -Force"
             }
-            @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -in 'ExecutionContext', 'PSDefaultParameterValues' }, $true)) | Should -BeNullOrEmpty
+            @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.VariableExpressionAst] -and $n.VariablePath.UserPath -in 'ExecutionContext', 'PSDefaultParameterValues', 'PSCmdlet', 'Host' }, $true)) | Should -BeNullOrEmpty
             @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.TypeExpressionAst] -and $n.TypeName.FullName -match 'scriptblock|powershell|runspace|activator|reflection|assembly|process' }, $true)) | Should -BeNullOrEmpty
             @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.InvokeMemberExpressionAst] -and "$($n.Member)" -match '^(Invoke|InvokeReturnAsIs|InvokeScript|NewScriptBlock|AddScript|AddCommand|Create|GetNewClosure)$' }, $true)) | Should -BeNullOrEmpty
         }
@@ -330,7 +343,7 @@ Describe 'Azure read-only provider registration guard' {
     It 'skips VM power for a pool when Microsoft.Compute is not registered, and says why' {
         $global:FakeAz.Providers['Microsoft.Compute'] = 'NotRegistered'
         $text = @(Get-AzReadOnlyAvdHealth | Where-Object HostPool -eq 'hp-lab' | ForEach-Object Finding)
-        $text | Should -Contain 'Could not read VMs in resource group rg-avd-hosts; power states are unknown.'
+        $text | Should -Contain 'Could not read VMs in resource group rg-avd-hosts; power states are unknown. Microsoft.Compute is not registered in this subscription, so it has nothing to read. Cloudwright does not register it.'
         Get-FakeCall 'Get-AzVM' | Should -BeNullOrEmpty
     }
     It 'fails closed when the registration state cannot be read' {
@@ -530,7 +543,7 @@ Describe 'Azure read-only reports' {
         $global:FakeAz.HostPools[0].StartVMOnConnect = $false
         $global:FakeAz.VmReadFailures = @('rg-avd-hosts')
         $text = @(Get-AzReadOnlyAvdHealth | Where-Object HostPool -eq 'hp-lab' | ForEach-Object Finding)
-        $text | Should -Contain 'Could not read VMs in resource group rg-avd-hosts; power states are unknown.'
+        $text | Should -Contain 'Could not read VMs in resource group rg-avd-hosts; power states are unknown. AuthorizationFailed: cannot read rg-avd-hosts'
         $text | Should -Not -Contain 'No host is running and Start VM On Connect is off: users cannot connect until a host starts.'
         $global:FakeAz.VmReadFailures = @()
         $global:FakeAz.Vms[0].PowerState = 'VM deallocated'
@@ -546,6 +559,8 @@ Describe 'Azure read-only reports' {
         $d = Get-AzReadOnlyHostPool -ResourceGroupName rg-avd -HostPoolName hp-lab
         ($d.Hosts | Where-Object Name -eq 'avd-0.corp.example').PowerState | Should -Be 'other subscription'
         ($d.Hosts | Where-Object Name -eq 'avd-2.corp.example').PowerState | Should -Be 'not an Azure VM'
+        $hosts[2].ResourceId = "/subscriptions/$($script:Lab)/resourceGroups/rg-avd-hosts/providers/Microsoft.Compute/virtualMachineScaleSets/vmss-avd/virtualMachines/3"
+        ((Get-AzReadOnlyHostPool -ResourceGroupName rg-avd -HostPoolName hp-lab).Hosts | Where-Object Name -eq 'avd-2.corp.example').PowerState | Should -Be 'not a standalone VM'
         $text = @(Get-AzReadOnlyAvdHealth | Where-Object HostPool -eq 'hp-lab' | ForEach-Object { "$($_.SessionHost)|$($_.Finding)" })
         @($text | Where-Object { $_ -like '*orphaned*' }) | Should -BeNullOrEmpty
         $text | Should -Not -Contain '|No host is running and Start VM On Connect is off: users cannot connect until a host starts.'
@@ -554,7 +569,7 @@ Describe 'Azure read-only reports' {
     It 'keeps Get-AzVM errors for a missing resource group as a warning, not an orphan' {
         $global:FakeAz.SessionHosts['hp-lab'][2].ResourceId = "/subscriptions/$($script:Lab)/resourceGroups/rg-gone/providers/Microsoft.Compute/virtualMachines/avd-2"
         $text = @(Get-AzReadOnlyAvdHealth | Where-Object HostPool -eq 'hp-lab' | ForEach-Object Finding)
-        $text | Should -Contain 'Could not read VMs in resource group rg-gone; power states are unknown.'
+        $text | Should -Contain "Could not read VMs in resource group rg-gone; power states are unknown. ResourceGroupNotFound: Resource group 'rg-gone' could not be found."
         @($text | Where-Object { $_ -like '*orphaned*' }) | Should -BeNullOrEmpty
     }
     It 'lists networks and flags inbound rules open to any internet source' {
@@ -576,7 +591,13 @@ Describe 'Azure read-only reports' {
         @{ Case = 'Key Vault Contributor'; Json = '{"value":[{"actions":["Microsoft.KeyVault/*","Microsoft.Resources/deployments/*"],"notActions":["Microsoft.KeyVault/locations/deletedVaults/purge/action"]}]}'; CanChange = $true; Example = 'Microsoft.KeyVault/*' }
         @{ Case = 'Storage Blob Data Owner'; Json = '{"value":[{"actions":["Microsoft.Storage/storageAccounts/blobServices/containers/read"],"notActions":[],"dataActions":["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/*"],"notDataActions":[]}]}'; CanChange = $true; Example = 'data: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/*' }
         @{ Case = 'VM Administrator Login'; Json = '{"value":[{"actions":["Microsoft.Compute/virtualMachines/*/read"],"notActions":[],"dataActions":["Microsoft.Compute/virtualMachines/login/action","Microsoft.Compute/virtualMachines/loginAsAdmin/action"],"notDataActions":[]}]}'; CanChange = $true; Example = 'data: Microsoft.Compute/virtualMachines/loginAsAdmin/action' }
-        @{ Case = 'Storage Blob Data Reader'; Json = '{"value":[{"actions":["Microsoft.Storage/storageAccounts/blobServices/containers/read"],"notActions":[],"dataActions":["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],"notDataActions":[]}]}'; CanChange = $false; Example = $null }
+        @{ Case = 'Storage Blob Data Reader'; Json = '{"value":[{"actions":["Microsoft.Storage/storageAccounts/blobServices/containers/read","Microsoft.Storage/storageAccounts/blobServices/generateUserDelegationKey/action"],"notActions":[],"dataActions":["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],"notDataActions":[]}]}'; CanChange = $true; Example = 'data: Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read' }
+        @{ Case = 'Reader + Storage Queue Data Reader'; Json = '{"value":[{"actions":["*/read"],"notActions":[]},{"actions":["Microsoft.Storage/storageAccounts/queueServices/queues/read"],"notActions":[],"dataActions":["Microsoft.Storage/storageAccounts/queueServices/queues/messages/read"],"notDataActions":[]}]}'; CanChange = $true; Example = 'data: Microsoft.Storage/storageAccounts/queueServices/queues/messages/read' }
+        @{ Case = 'a non-read action containing read'; Json = '{"value":[{"actions":["*/read","Microsoft.KeyVault/vaults/secrets/readMetadata/action"],"notActions":[]}]}'; CanChange = $true; Example = 'Microsoft.KeyVault/vaults/secrets/readMetadata/action' }
+        @{ Case = 'an exclusion of ? (literal in Azure)'; Json = '{"value":[{"actions":["*"],"notActions":["?"]}]}'; CanChange = $true; Example = '*' }
+        @{ Case = 'an exclusion with ? inside'; Json = '{"value":[{"actions":["*/read","Microsoft.Compute/*"],"notActions":["Microsoft.Compute/?"]}]}'; CanChange = $true; Example = 'Microsoft.Compute/*' }
+        @{ Case = 'an exclusion with brackets'; Json = '{"value":[{"actions":["*/read","Microsoft.Compute/*"],"notActions":["Microsoft.Compute/[*]"]}]}'; CanChange = $true; Example = 'Microsoft.Compute/*' }
+        @{ Case = 'a data read excluded by its own set'; Json = '{"value":[{"actions":["*/read"],"notActions":[],"dataActions":["Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read"],"notDataActions":["Microsoft.Storage/*"]}]}'; CanChange = $false; Example = $null }
         @{ Case = 'a write excluded by its own set'; Json = '{"value":[{"actions":["*/read","Microsoft.Compute/virtualMachines/start/action"],"notActions":["Microsoft.Compute/*"]}]}'; CanChange = $false; Example = $null }
     ) {
         $global:FakeAz.Permissions = $Json
@@ -599,6 +620,11 @@ Describe 'Azure read-only reports' {
         @{ Case = 'HTTP 403'; Status = 403; Json = '{}'; Note = 'The permission check returned HTTP 403.' }
         @{ Case = 'no value'; Status = 200; Json = '{"error":"fixture"}'; Note = 'The permission check returned an unexpected response.' }
         @{ Case = 'not JSON'; Status = 200; Json = '<html>'; Note = 'The permission check returned an unexpected response.' }
+        @{ Case = 'null value'; Status = 200; Json = '{"value":null}'; Note = 'The permission check returned an unexpected response.' }
+        @{ Case = 'string value'; Status = 200; Json = '{"value":"fixture"}'; Note = 'The permission check returned an unexpected response.' }
+        @{ Case = 'null entry'; Status = 200; Json = '{"value":[null]}'; Note = 'The permission check returned an unexpected response.' }
+        @{ Case = 'entry without actions'; Status = 200; Json = '{"value":[{"allowedActions":["*"]}]}'; Note = 'The permission check returned an unexpected response.' }
+        @{ Case = 'one entry without actions'; Status = 200; Json = '{"value":[{"actions":["*/read"]},{"notActions":[]}]}'; Note = 'The permission check returned an unexpected response.' }
     ) {
         $global:FakeAz.PermissionStatus = $Status
         $global:FakeAz.Permissions = $Json
@@ -641,7 +667,7 @@ Describe 'Azure read-only console' {
         $text | Should -Match 'Subscription: Lab \(bbbbbbbb-0000-0000-0000-000000000001\)'
         $text | Should -Match 'Access:       no change or data permissions found.'
         $text | Should -Not -Match 'read-only at subscription scope'
-        $text | Should -Match 'The Azure sign-in ends when this PowerShell process exits'
+        $text | Should -Match "Az's sign-in ends when this PowerShell process exits; on Windows the sign-in broker still remembers the account"
         foreach ($heading in 'Subscriptions', 'Resource groups', 'Virtual machines', 'AVD host pools', 'Session hosts', 'Application groups', 'Scaling plans',
             'User sessions in hp-lab', 'AVD health', 'Virtual networks', 'Subnets') {
             $script:Screen | Should -Contain $heading

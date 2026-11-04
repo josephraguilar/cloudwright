@@ -65,10 +65,12 @@ the account. The tenant and subscription must be GUIDs; the active context must 
 account that just signed in, and every report re-checks tenant, account and subscription
 before reading. The only REST calls are GETs of the selected subscription's own permissions
 and of those three providers' registration state. The permissions are summarized to flag
-any action or data action beyond reading at subscription scope; lower scopes and deny
-assignments are not included. A parse of the source in the tests admits only reviewed
-built-ins, .NET types and methods, the module's own functions and exactly one dynamic call:
-the gateway's. **The account's own Azure permissions are not reduced**: prefer an account
+any control-plane action beyond reading and any data action at subscription scope; lower
+scopes and deny assignments are not included. As a regression check, a parse of the source
+in the tests admits only reviewed built-ins, .NET types and methods, member names used
+through `ForEach-Object`, the module's own functions and exactly one dynamic call (the
+gateway's); it rejects members that reach the PowerShell engine. It does not constrain
+other code running in the same session. **The account's own Azure permissions are not reduced**: prefer an account
 with the Reader role. See [the read-only console's README](../azure/readonly/README.md) for its limits.
 
 **Legacy Azure execution is disabled, including direct calls.** Every runtime PowerShell file

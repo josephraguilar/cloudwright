@@ -51,7 +51,7 @@ $sourceRoot = (Get-Item -LiteralPath $PSScriptRoot).FullName
 if ($destination.TrimEnd([IO.Path]::DirectorySeparatorChar) -eq $sourceRoot.TrimEnd([IO.Path]::DirectorySeparatorChar)) {
     throw 'The installation directory must be different from the source checkout.'
 }
-foreach ($required in 'Cloudwright.psd1', 'Cloudwright.psm1', 'learn/Start-MsScripter.ps1', 'azure/scripts/powershell/Start-AvdConsole.ps1', 'm365/Start-Toolkit.ps1', 'm365/scripts/powershell/modules/M365Helpers/Safety.ps1') {
+foreach ($required in 'Cloudwright.psd1', 'Cloudwright.psm1', 'learn/Start-MsScripter.ps1', 'azure/readonly/Start-AzureReadOnly.ps1', 'm365/Start-Toolkit.ps1', 'm365/scripts/powershell/modules/M365Helpers/Safety.ps1') {
     if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot $required) -PathType Leaf)) {
         throw "Incomplete Cloudwright checkout: missing $required."
     }

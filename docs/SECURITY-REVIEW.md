@@ -178,10 +178,41 @@ the real Az.Accounts offline. It rejected publication for AR1 and AR2:
 The reviewer said a focused delta check is enough after these fixes unless the gateway design
 changes broadly.
 
-Local evidence after the fixes (PowerShell 7.6.9, no network): Azure **350** passed with the
+Local evidence after the r1 fixes (PowerShell 7.6.9, no network): Azure **350** passed with the
 current real Az modules available to the metadata test (349 and 1 skipped without them),
 root **1,614** (including 40 `AzureRead*` fresh-process refusal cases), Learn **137**, M365
 **504**; PSScriptAnalyzer reports no findings across 424 PowerShell files.
+
+### Focused review r2 and dispositions
+
+Opus 5.5 at max effort checked `1b301c0`
+(`.handoffs/cloudwright/opus-azure-readonly-review-r2.md`): **publishable after owner
+approval**. AR1 and AR2 are fixed, and no path in the unmodified code changes Azure or Entra
+state, runs code on a VM, shows a secret or reaches the legacy code. That held across 420
+fresh-process probes under 14 error-handling settings, including Owner/Global Administrator
+scenarios. The reviewer also read Az.Accounts 5.5.4: it registers providers only for
+resource-group-scoped or deeper requests. So the guard's own subscription-level GETs cannot
+trigger registration, and the only trigger in `e286ad0` was the per-resource-group VM read.
+The guard covers more than strictly needed, on purpose. Registering a provider can also add
+an application to the Entra tenant, which the guard therefore prevents as well. The
+findings below were low or informational, and the reviewer said the access-summary, test
+and doc fixes needed only their own tests:
+
+| Finding | Disposition |
+| --- | --- |
+| AR2-1 low: data-plane reader roles reported "no change or data permissions" | Every data action, reads included, now counts as data access. Fixtures use the real Storage Blob Data Reader definition and add Storage Queue Data Reader. |
+| AR2-2 low: `?` and `[...]` in exclusions acted as wildcards | An exclusion containing `?`, `[`, `]` or a backtick excludes nothing. |
+| AR2-3 low: malformed bodies read as "no change" | `value` must be an array of objects, each with `actions`; anything else is "not checked". |
+| AR2-4 low: member calls through `ForEach-Object` evaded the static rule | `ForEach-Object` may take only scriptblocks or listed member names, and members that reach the engine (`InvokeCommand`, `SessionState`, ...) and `$PSCmdlet`/`$Host` are rejected. Both of the reviewer's file-writing mutants now fail. SAFETY.md calls the parse a regression check. |
+| AR2-5 info: a same-session global alias can replace the module's helpers | Documented in the gateway GOTCHA; outside the boundary, and `cloudwright azure` starts without a profile. Code unchanged, so the guard and gateway were not modified after r2. |
+| AR2-6 info: installer still required the legacy console | `Install-Cloudwright.ps1` requires the read-only console. |
+| AR2-7 info: labels and wording | Scale-set instances show `not a standalone VM`; the VM-read warning includes its reason; banner and quit message mention WAM; "could" for auto-registration; README intro points to Limits for the Entra sign-in note. The guard's no-session `$false` (c) is unchanged because it is unreachable from exported functions and the guard was left as reviewed. |
+| AR2-8 info: test gaps | Fixture with a non-read action containing "read" (`readMetadata/action`); the reviewer's N7 mutant now fails. |
+
+Local evidence after the r2 fixes (PowerShell 7.6.9, no network): Azure **361** passed with the
+current real Az modules (360 and 1 skipped without them), root **1,614**, Learn **137**, M365
+**504**; no analyzer findings across 424 files. Seven mutants of the r2 fixes, including the
+reviewer's S1, S2 and N7, each fail the read-only tests.
 
 Limits: no live tenant has been read; real sign-in, WAM, Lighthouse, ARM's response for the
 AR1 trigger and large estates are unverified. The Windows desktop interface stays disabled.

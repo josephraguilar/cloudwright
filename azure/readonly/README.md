@@ -1,8 +1,9 @@
 # Azure read-only mode
 
 Part of [Cloudwright](../../README.md). `cloudwright azure` opens this console. It reads
-Azure and Azure Virtual Desktop (AVD) and is designed to change nothing; see the
-provider-registration guard below for the one way Az itself could otherwise write. The legacy administration
+Azure and Azure Virtual Desktop (AVD) and is designed to change nothing. See the
+provider-registration guard below for how Az itself could otherwise write, and Limits for
+what a first sign-in can do in Entra. The legacy administration
 scripts, modules, desktop interface and runbook under `../scripts` and `../runbooks` stay
 blocked; this folder does not load them.
 
@@ -40,8 +41,9 @@ session host whose VM no longer exists, a pool with no application group, and a 
 no host is running while Start VM On Connect is off (only when every host's power state is
 known). It reports a **Warning** for drain mode, an app group no workspace publishes, a pool
 with no hosts, and VMs it could not read. Only Azure VMs in the selected subscription are
-joined to their session hosts; others show `other subscription` or `not an Azure VM` (for
-example Azure Local) instead of a power state, and are never called orphaned. These are
+joined to their session hosts; others show `other subscription`, `not a standalone VM`
+(a scale set instance) or `not an Azure VM` (for example Azure Local) instead of a power
+state, and are never called orphaned. These are
 pointers for an operator, not a full health evaluation. The network report's
 `OpenToInternet` column lists inbound Allow rules from any internet source; it does not
 apply rule priority or Deny rules.
@@ -84,9 +86,9 @@ apply rule priority or Deny rules.
 ## Limits
 
 Cloudwright only reads, but **it does not reduce your account's Azure permissions.** For
-routine inspection use an account with the **Reader** role. The access summary flags any
-permission at subscription scope beyond reading, including data-plane permissions such as
-blob or VM-login access. It does not include resource-group, resource or deny
+routine inspection use an account with the **Reader** role. At subscription scope, the
+access summary flags any control-plane permission beyond reading and any data-plane
+permission at all, reads included (blob, queue, table or file data, VM login). It does not include resource-group, resource or deny
 assignments, and it says when Azure listed more permissions than it read; "no change or data
 permissions found" is not a guarantee. Reports can show sensitive data such as user names
 and network layout. A delegated (Lighthouse) subscription shows the tenant that owns it.

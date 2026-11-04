@@ -137,7 +137,7 @@ Write-Host ''
 Write-Host 'Cloudwright Azure and AVD  -  SAFE MODE: read-only' -ForegroundColor Cyan
 Write-Host '  Every option only reads. Nothing is started, stopped, changed or deleted.'
 Write-Host '  Your account keeps its own Azure permissions: prefer an account with the Reader role.'
-Write-Host '  The sign-in stays in this PowerShell window and is not saved for later sessions.'
+Write-Host '  Az keeps this sign-in in this PowerShell window only. On Windows the sign-in broker remembers the account; device-code sign-in avoids it.'
 $missing = @(Get-AzReadOnlyMissingModule)
 if ($missing.Count) {
     throw "Install the missing Az modules, then run cloudwright azure again:`n  Install-Module $($missing -join ', ') -Scope CurrentUser"
@@ -174,7 +174,7 @@ while ($true) {
     Write-Host '   Q. Quit'
     $choice = "$(Read-Host 'Choose')".Trim().ToLowerInvariant()
     if ($choice -in 'q', 'quit', 'exit') {
-        Write-Host 'The Azure sign-in ends when this PowerShell process exits. If you ran this script in an existing window, close it.'
+        Write-Host "Az's sign-in ends when this PowerShell process exits; on Windows the sign-in broker still remembers the account. If you ran this script in an existing window, close it."
         break
     }
     try {

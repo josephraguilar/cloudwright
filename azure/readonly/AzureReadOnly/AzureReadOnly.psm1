@@ -91,7 +91,13 @@ function Get-AzReadCommandPolicy {
 #          ordinally and exactly: PowerShell would otherwise accept an abbreviation
 #          or alias for a listed parameter, and culture-aware comparison ignores
 #          some invisible characters. Built-ins are module-qualified so a
-#          same-named function in the session cannot stand in for them.
+#          same-named function in the session cannot stand in for them. The
+#          module's own helpers are not: a same-named global *alias* would win,
+#          which needs code already running in this session (outside the boundary;
+#          cloudwright azure starts a fresh process without a profile).
+#          The provider check is broader than strictly needed: Az.Accounts 5.5.4
+#          registers only for resource-group-scoped requests, so the check's own
+#          subscription-level GET cannot trigger registration.
 function Invoke-AzReadCommand {
     <#
     .SYNOPSIS
@@ -388,11 +394,12 @@ function Get-AzReadOnlyAccess {
         Whether the signed-in account has any permission beyond reading at subscription scope.
     .DESCRIPTION
         Reads the account's own effective permissions at subscription scope (the
-        portal's "Check access"). Any action that does not end in /read, and any
-        data action that does not, counts as a change permission unless the same
-        permission set's exclusions cover it. Cloudwright still only reads; this
-        tells you how much more the account could do. Resource-group, resource and
-        deny assignments are not included.
+        portal's "Check access"). Any action that does not end in /read counts as a
+        change permission, and any data action at all (reads too: they read data,
+        not settings) counts as data access, unless the same permission set's
+        exclusions cover it. Cloudwright still only reads; this tells you how much
+        more the account could do. Resource-group, resource and deny assignments
+        are not included. A response in any other shape reports "not checked".
     .OUTPUTS
         Checked (the response was understood), Complete (every page was read),
         CanChange ($true, $false, or $null when an unread page could hold more),
@@ -410,16 +417,21 @@ function Get-AzReadOnlyAccess {
     if ($status -eq 200) {
         try { $body = Get-AzReadOnlyValue $response 'Content' '' | ConvertFrom-Json } catch { $body = $null }
     }
-    if (-not $body -or -not $body.PSObject.Properties['value']) {
+    # Expected shape: value is an array of objects, each with an actions property.
+    # GOTCHA Assign directly: an if-block's output would unroll a one-element array.
+    $value = $null
+    if ($body -and $body.PSObject.Properties['value']) { $value = $body.value }
+    $shaped = $value -is [object[]] -and @($value | Where-Object { $null -eq $_ -or $_ -isnot [pscustomobject] -or -not $_.PSObject.Properties['actions'] }).Count -eq 0
+    if (-not $shaped) {
         $note = if ($status -ne 200) { "The permission check returned HTTP $status." } else { 'The permission check returned an unexpected response.' }
         return [pscustomobject]@{ Checked = $false; Complete = $false; CanChange = $null; Examples = @(); Note = $note }
     }
-    $changes = @(@(foreach ($p in @($body.value)) {
+    $changes = @(@(foreach ($p in $value) {
         foreach ($pattern in @(Get-AzReadOnlyValue $p 'actions' @())) {
             if (Test-AzReadOnlyChangePattern -Pattern $pattern -Excluded @(Get-AzReadOnlyValue $p 'notActions' @())) { "$pattern" }
         }
         foreach ($pattern in @(Get-AzReadOnlyValue $p 'dataActions' @())) {
-            if (Test-AzReadOnlyChangePattern -Pattern $pattern -Excluded @(Get-AzReadOnlyValue $p 'notDataActions' @())) { "data: $pattern" }
+            if (Test-AzReadOnlyChangePattern -Pattern $pattern -Excluded @(Get-AzReadOnlyValue $p 'notDataActions' @()) -Data) { "data: $pattern" }
         }
     }) | Sort-Object -Unique)
     $complete = -not (Get-AzReadOnlyValue $body 'nextLink')
@@ -433,12 +445,15 @@ function Get-AzReadOnlyAccess {
 }
 
 function Test-AzReadOnlyChangePattern {
-    # A pattern that only reads ends in /read. Anything else ('*', 'Microsoft.Storage/*',
-    # '.../action') can change something, unless one of the same permission set's
-    # exclusions covers the whole pattern. Azure's wildcards mean what -like means.
-    param([string]$Pattern, [string[]]$Excluded)
-    if ($Pattern -like '*/read') { return $false }
-    return @($Excluded | Where-Object { $Pattern -like $_ }).Count -eq 0
+    # A control-plane pattern that only reads ends in /read. Anything else ('*',
+    # 'Microsoft.Storage/*', '.../action') can change something; every data action
+    # counts (-Data). Either way it counts unless one of the same permission set's
+    # exclusions covers the whole pattern. Azure's only wildcard is *, which means
+    # what it means to -like; an exclusion with ?, [, ] or a backtick, which -like
+    # would also treat as wildcards, excludes nothing.
+    param([string]$Pattern, [string[]]$Excluded, [switch]$Data)
+    if (-not $Data -and $Pattern -like '*/read') { return $false }
+    return @($Excluded | Where-Object { $_ -notmatch '[?\[\]`]' -and $Pattern -like $_ }).Count -eq 0
 }
 #endregion
 
@@ -601,6 +616,7 @@ function Get-AzReadOnlyPoolDetail {
         $power = if ($vm) { "$(Get-AzReadOnlyValue $vm 'PowerState')" -replace '^VM ', '' }
             elseif (-not $ref.ResourceGroupName) { 'unknown' }
             elseif (-not (Test-AzReadOnlySame $ref.SubscriptionId $script:Session.SubscriptionId)) { 'other subscription' }
+            elseif (-not $local -and "$($ref.Type)" -like 'Microsoft.Compute/*') { 'not a standalone VM' }
             elseif (-not $local) { 'not an Azure VM' }
             elseif ($unread.ContainsKey($ref.ResourceGroupName.ToLowerInvariant())) { 'unknown' }
             else { 'not found' }
@@ -644,6 +660,7 @@ function Get-AzReadOnlyPoolDetail {
         ScalingPlans = $links.ScalingPlans
         Hosts        = @($rows | Sort-Object Name)
         UnreadVmGroups = @($unread.Keys | Sort-Object)
+        UnreadVmReasons = @{} + $unread
     }
 }
 
@@ -736,11 +753,11 @@ function Get-AzReadOnlyPoolFinding {
         New-AzReadOnlyFinding 'Warning' $pool '' "Application group $($g.Name) is not in any workspace, so users do not see it."
     }
     # Only when every host's power state is known: unknown or unjoined hosts may be running.
-    $known = @($Detail.Hosts | Where-Object { $_.PowerState -notin 'unknown', 'other subscription', 'not an Azure VM' }).Count -eq $Detail.Counts.Total
+    $known = @($Detail.Hosts | Where-Object { $_.PowerState -notin 'unknown', 'other subscription', 'not a standalone VM', 'not an Azure VM' }).Count -eq $Detail.Counts.Total
     if ($Detail.Counts.Total -gt 0 -and $Detail.Counts.Running -eq 0 -and -not $Detail.Pool.StartVMOnConnect -and $known) {
         New-AzReadOnlyFinding 'Problem' $pool '' 'No host is running and Start VM On Connect is off: users cannot connect until a host starts.'
     }
-    foreach ($g in $Detail.UnreadVmGroups) { New-AzReadOnlyFinding 'Warning' $pool '' "Could not read VMs in resource group $g; power states are unknown." }
+    foreach ($g in $Detail.UnreadVmGroups) { New-AzReadOnlyFinding 'Warning' $pool '' "Could not read VMs in resource group $g; power states are unknown. $($Detail.UnreadVmReasons[$g])" }
     foreach ($h in $Detail.Hosts) {
         if ($h.Status -notin 'Available', 'Shutdown', 'Upgrading') { New-AzReadOnlyFinding 'Problem' $pool $h.Name "Status is $(if ($h.Status) { $h.Status } else { 'unknown' })." }
         if ($h.PowerState -eq 'not found') { New-AzReadOnlyFinding 'Problem' $pool $h.Name 'Its VM was not found; the session host may be orphaned.' }
