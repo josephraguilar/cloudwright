@@ -30,6 +30,41 @@ BeforeDiscovery {
         }
     })
 }
+
+Describe 'Regression probe process termination' {
+    BeforeAll {
+        $probe = Join-Path $PSScriptRoot 'support/Invoke-RefusalProbe.ps1'
+        $executable = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+        $fixtureRoot = Join-Path $TestDrive 'termination'
+        $null = New-Item -ItemType Directory -Path $fixtureRoot
+    }
+    It 'terminates at a body breakpoint before the following statement runs' {
+        @'
+param()
+throw 'Simulated old suppressible refusal'
+[Console]::WriteLine('AFTER-BREAKPOINT')
+'@ | Set-Content (Join-Path $fixtureRoot 'regression.ps1')
+        $output = & $executable -NoLogo -NoProfile -NonInteractive -File $probe -Repository $fixtureRoot -Kind AzureScript -Target regression.ps1 -Vector GlobalIgnore -Scratch $fixtureRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 93 -Because $output
+        $output | Should -Match 'BODY-CANARY'
+        $output | Should -Not -Match 'AFTER-BREAKPOINT|CALLER-CONTINUED'
+    }
+    It 'terminates inside a side-effect fake before its caller continues' {
+        $folder = Join-Path $fixtureRoot 'learn/src/MsScripter'
+        $null = New-Item -ItemType Directory -Path $folder -Force
+        "@{ ModuleVersion = '1.0.0'; RootModule = 'MsScripter.psm1' }" | Set-Content (Join-Path $folder 'MsScripter.psd1')
+        @'
+function Resolve-MsSource {
+    Remove-CloudwrightCanary
+    [Console]::WriteLine('AFTER-FAKE')
+}
+'@ | Set-Content (Join-Path $folder 'MsScripter.psm1')
+        $output = & $executable -NoLogo -NoProfile -NonInteractive -File $probe -Repository $fixtureRoot -Kind LearnSource -Target . -Vector Default -Scratch $fixtureRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 91 -Because $output
+        $output | Should -Match 'SIDE-EFFECT-CANARY'
+        $output | Should -Not -Match 'AFTER-FAKE|CALLER-CONTINUED'
+    }
+}
 Describe 'Refusals in fresh processes without try/catch' -ForEach @(@{ ProbeCases = $script:RefusalCases }) {
 BeforeAll {
     $root = Split-Path $PSScriptRoot -Parent

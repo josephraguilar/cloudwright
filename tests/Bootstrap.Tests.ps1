@@ -113,6 +113,48 @@ Describe 'Cloudwright download bootstrap' {
         Should -Invoke Invoke-RestMethod -Times 1 -Exactly
     }
 
+    It 'prints a working replacement command while keeping the old installation and settings' {
+        $script:ModuleBase = Join-Path $TestDrive "modules' files"
+        & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
+        $manifest = Join-Path $script:Destination 'Cloudwright.psd1'
+        (Get-Content $manifest -Raw).Replace("'0.2.2'", "'0.1.0'") | Set-Content $manifest
+        Copy-Item $manifest (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.psd1') -Force
+        Import-Module (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.psd1') -Force
+        @{ Tool = 'Cloudwright'; SchemaVersion = 1; Commit = $script:Commit } |
+            ConvertTo-Json | Set-Content (Join-Path $script:Destination 'Cloudwright.download.json')
+        $local = Join-Path $script:Destination 'm365/settings.local.json'
+        Set-Content $local '{"keep":true}'
+        cloudwright version | Should -Be '0.1.0'
+
+        $refusal = { & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase } |
+            Should -Throw '*predates mandatory*safe mode*' -PassThru
+        $message = $refusal.Exception.Message
+        $message | Should -Match 'has NOT been updated or disabled'
+        $message | Should -Match 'older code that changes Azure and Microsoft 365 tenants'
+        $message | Should -Match ([regex]::Escape($script:Destination))
+        cloudwright version | Should -Be '0.1.0'
+        $command = @($message -split '\r?\n' | Where-Object { $_.StartsWith('& ([scriptblock]::Create(') })
+        $command.Count | Should -Be 1
+        Mock Invoke-RestMethod { Get-Content $script:Bootstrap -Raw } -ParameterFilter { $Uri -like 'https://raw.githubusercontent.com/*/Get-Cloudwright.ps1' }
+        # Execute the exact suggested command with fake downloads and tenant entry
+        # points that throw if launched. Its custom module path contains a quote.
+        Invoke-Expression $command[0]
+        cloudwright version | Should -Be '0.2.2'
+        $location = Get-Content (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.location.json') -Raw | ConvertFrom-Json
+        $location.RepositoryRoot | Should -Not -Be $script:Destination
+        Test-Path (Join-Path $location.RepositoryRoot 'Cloudwright.psd1') | Should -BeTrue
+        (Get-Content $local -Raw).Trim() | Should -Be '{"keep":true}'
+        (Import-PowerShellDataFile $manifest).ModuleVersion | Should -Be '0.1.0'
+        $pwsh = Join-Path $PSHOME $(if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' })
+        $output = & $pwsh -NoLogo -NoProfile -NonInteractive -Command {
+            param($modules)
+            $env:PSModulePath = $modules + [IO.Path]::PathSeparator + $env:PSModulePath
+            cloudwright version
+        } -args $script:ModuleBase 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0 -Because $output
+        $output.Trim() | Should -Be '0.2.2'
+    }
+
     It 'refuses to replace an unrelated directory' {
         $null = New-Item -ItemType Directory -Path $script:Destination
         $sentinel = Join-Path $script:Destination 'keep.txt'

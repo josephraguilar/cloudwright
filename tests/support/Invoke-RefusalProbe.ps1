@@ -13,13 +13,14 @@ $ConfirmPreference = 'None'
 $env:PSModulePath = (Join-Path $Scratch 'modules') + [IO.Path]::PathSeparator + (Join-Path $PSHOME 'Modules')
 $env:M365_TOOLKIT_LOG_PATH = Join-Path $Scratch 'logs'
 
-# No production SDK is discoverable. Unexpected network, sign-in, browser, or write
-# attempts terminate the probe with a distinct canary, never touch a real tenant.
+# No production SDK is discoverable. Calls to these network, sign-in, browser, or
+# write fakes terminate the child process with a distinct canary. Environment.Exit
+# is required: PowerShell can swallow ordinary exit inside a breakpoint or nested script.
 foreach ($name in 'Invoke-RestMethod', 'Invoke-WebRequest', 'Start-Process', 'Connect-ExchangeOnline', 'Remove-CloudwrightCanary', 'Invoke-CloudwrightCanary') {
-    Set-Item "function:global:$name" { [Console]::WriteLine('SIDE-EFFECT-CANARY'); exit 91 }
+    Set-Item "function:global:$name" { [Console]::WriteLine('SIDE-EFFECT-CANARY'); [Environment]::Exit(91) }
 }
 function global:Connect-MgGraph {
-    if ($Kind -ne 'LearnGraph') { [Console]::WriteLine('SIGN-IN-CANARY'); exit 92 }
+    if ($Kind -ne 'LearnGraph') { [Console]::WriteLine('SIGN-IN-CANARY'); [Environment]::Exit(92) }
 }
 function global:Disconnect-MgGraph { }
 function global:Get-MgContext {
@@ -65,10 +66,11 @@ if ($Kind -in 'AzureScript', 'AzureModule', 'M365Script') {
         if ($guard.Count -ne 1) { throw 'Probe requires exactly one entry guard.' }
         $after = [array]::IndexOf($statements, $guard[0]) + 1
     }
-    # If the refusal regresses, stop BEFORE legacy code can run, with a distinct
-    # failing marker. Function-definition-only GUI pages are caught by the caller marker.
+    # If the refusal regresses, terminate the process at the next statement, with
+    # a failing marker. Function-definition-only GUI pages use the caller marker.
+    # Run adversarial probes without network access; this is not a PowerShell sandbox.
     $null = Set-PSBreakpoint -Script $codePath -Line $statements[$after].Extent.StartLineNumber -Action {
-        [Console]::WriteLine('BODY-CANARY'); exit 93
+        [Console]::WriteLine('BODY-CANARY'); [Environment]::Exit(93)
     }
     if ($Kind -ne 'AzureModule') { $arguments = Get-ProbeArguments $path }
 } elseif ($Kind -like 'M365*') {

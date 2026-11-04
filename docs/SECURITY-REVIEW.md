@@ -24,8 +24,12 @@ publication due to correctness defects and inadequate end-to-end test evidence. 
 changes below address those findings. Round r3 was stopped when the owner confirmed the
 broader scope, before it returned a verdict. Round r4 reviewed `c1bebf7` and rejected
 publication after finding error-preference bypasses despite 918 passing tests. The
-0.2.2 candidate addresses those findings; a fresh independent review is pending.
-This report is not an independent sign-off or a proof that every defect is absent.
+0.2.2 candidate addresses those findings. Opus r5 independently reviewed `4228fc6`, closed
+the major bypass findings and recommended publication after correcting the upgrade refusal
+message (R5-1) and obtaining owner approval. It explicitly requested only a focused check
+of that follow-up. The message and probe termination corrections below followed that review;
+they are not represented as another full independent audit. This document records the
+findings and responses; it is not proof that every defect is absent.
 
 ## What the candidate enforces
 
@@ -68,7 +72,7 @@ This report is not an independent sign-off or a proof that every defect is absen
 
 | Finding | Change / remaining boundary |
 | --- | --- |
-| C1: E2E stub errors allowed false-positive safety tests | Optional stub arguments now use strict-safe indexing. Tenant resolution has a StrictMode canary. Every catalog read must complete against fixtures; every catalog write must return the specific safe-mode refusal. An unrelated exception fails the test. The fake Exchange connection checks CommandName. The old 798-pass result alone did not establish this property and is superseded below. |
+| C1: E2E stub errors allowed false-positive safety tests | Optional stub arguments now use strict-safe indexing. Tenant resolution has a StrictMode canary. Every catalog read must complete against fixtures; every catalog write must return the expected safe-mode refusal text. An unrelated exception fails the test. The fake Exchange connection checks CommandName. The old 798-pass result alone did not establish this property and is superseded below. |
 | C2: Entra reimage could destroy a VM before the new cleanup refusal | Entra reimage is refused before any initialization or destructive work. Retired cleanup flags refuse before changes. Stale lookups no longer swallow failures; new host preflight runs before VM creation. Automatic cleanup remains disabled. |
 | C3: missing Exchange reads produced false report failures | Added Get-MailContact and Get-DistributionGroup. A reachability test walks the reviewed tasks/local functions and covers dynamic Get-$Kind calls; the integration stub enforces imported commands. Empty rule/relationship lists now produce ordinary failed checks rather than property errors. |
 | C4: display-name lookup could consent to the wrong application | Automatic Kerberos consent is disabled by the Azure module block and an additional function refusal. A future design must bind exact application identity to the storage account; it must not overwrite unrelated consent scopes. |
@@ -85,7 +89,7 @@ This report is not an independent sign-off or a proof that every defect is absen
 | Finding | Change / remaining boundary |
 | --- | --- |
 | R4-1 critical: Azure bare throws could be suppressed | All 101 runtime files and the root Azure refusal now use a separate scope that sets Stop before throwing. Fresh-process tests invoke every script and import every module/manifest without try/catch, with common, global and wildcard default error settings. Dot-sourcing is covered too. Legacy bodies stay disabled. |
-| R4-2 high: M365 write entry scripts could sign in with write scopes; direct mutation helper could execute | Authorization checks and the mutation helper set their own Stop preference before checking policy. The Hudu password helper refuses before reading settings. Tests exercise all 36 write entry points and direct helper calls with suppressed errors, requiring the specific refusal before a sign-in/body/write canary. |
+| R4-2 high: M365 write entry scripts could sign in with write scopes; direct mutation helper could execute | Authorization checks and the mutation helper set their own Stop preference before checking policy. The Hudu password helper refuses before reading settings. Tests exercise all 36 write entry points and direct helper calls with suppressed errors, requiring the expected refusal text before a sign-in/body/write canary (see the R5-3 coverage limits). |
 | R4-3 medium: documentation overstated the boundary | The prior 918-pass result is explicitly superseded for this property. Documentation describes local preference enforcement, caller-facing import errors, tested runtime/settings, consent writes and untested integration behavior. |
 | R4-4/R4-5: launcher, command validation, GDAP and Learn checks | Hardened the root refusal, literal-command validator, approval browser and Learn source/context checks. Learn generation and catalog validation also set Stop so malformed-answer rejection cannot be silenced. Direct regression probes cover these boundaries. |
 | R4-6: Exchange reachability test had a fixed noun list | The test now collects all reachable external Get-* calls, excluding built-ins, repository functions, Graph commands and local Exchange connection metadata; dynamic recipient kinds remain covered. |
@@ -97,6 +101,26 @@ until that disabled workflow is redesigned. Reusing the existing mailbox helper 
 introduce a live lookup before its new-mailbox dry-run placeholder exists. The central
 mutation refusal now establishes Stop itself, and its direct-call regression does not
 depend on a module caller. This hardening does not fix the old optional plan mechanism.
+
+## Opus round r5 findings and response
+
+Opus independently reproduced all 2,465 passing tests. The same refusal harness failed
+875 of 1,546 cases on the vulnerable r4 tree, demonstrating that it detects the actual
+bypasses. Additional preference/call-style probes found no current bypass. Ten single-line
+regressions that reopened a hole were all caught; four others had a second guard.
+The deferred onboarding helper relocation was accepted for this read-only release.
+
+| Finding | Change / remaining boundary |
+| --- | --- |
+| R5-1 medium: upgrade refusal left the old command active without a usable recovery command | The message now explicitly warns that the existing command was not updated or disabled and can still change tenants. It prints a complete command to install into a fresh directory and re-register the launcher, preserving custom module paths and old files. A regression test executes the printed command with fake downloads, checks settings preservation, and verifies the new version in a fresh process. |
+| R5-2 low: ordinary exit inside a probe breakpoint/fake did not halt the process | Probe canaries now use Environment.Exit. Two deliberately unsafe fixtures verify that the process stops before the following statement or caller continuation. These are child-process tests; production code does not use this termination mechanism. |
+| R5-3 low: additional regression coverage needed | Current checks passed independent adversarial review, but tests should additionally enforce write-guard position, use the exact entry refusal, exercise post-sign-in Graph/Exchange validation under suppression, distinguish private-module wildcard defaults, and cover Learn raw-template validation. This is future regression coverage, not a known current write path. |
+| R5-4 low: Learn Azure context persistence | Unchanged. Learn's optional Azure lookups inherit SDK autosave settings and full account RBAC; use offline Contoso mode with privileged accounts. NoSignIn only skips prompts and does not clear existing contexts. Process-only authentication and explicit account/tenant/subscription validation need a separate change and tests. Documented in SAFETY.md. |
+| R5-5 informational | Five fictional c.onmicrosoft.com test values remain. The CLI requires Bash; dash refuses before any Azure call but can exit a sourcing shell. Caller wrappers can catch a refusal without running its protected command. None is evidence of a current tenant write. |
+
+Opus recommended publication after R5-1 and owner approval, with focused delta checks
+instead of another full review round. This recommendation is for the constrained read-only
+release, not production tenant validation or routine Global Administrator use.
 
 ## Other findings that must remain blocked or be fixed before writes return
 
@@ -123,9 +147,12 @@ and a secret scan is not an anonymity certification.
 
 ## Validation and coverage
 
-PowerShell 7.6.9, Pester 5.7.1: root **1,578**, Learn **137**, M365 **504**, Azure **246**:
-**2,465 passed, 0 failed, 0 skipped**. All four suites ran against the current executable
-source with fake APIs. All **419** PowerShell files parse;
+Opus r5 independently reran PowerShell 7.6.9/Pester 5.7.1 at `4228fc6`: root **1,578**,
+Learn **137**, M365 **504**, Azure **246**: **2,465 passed, 0 failed, 0 skipped**.
+The R5-1/R5-2 follow-up adds three root tests; its complete root rerun passed **1,581**
+with zero failures or skips, in a network-isolated sandbox with writes limited to test
+scratch. Learn/M365/Azure code and tests are unchanged, so the verified total is **2,468**.
+All **419** PowerShell files parse;
 configured analyzer checks report zero warnings/errors. ShellCheck passes and XAML/
 example JSON parse. Unchanged infrastructure previously had 11 Bicep templates compiled.
 The root suite includes **1,546 fresh-process refusal cases** across 89 Azure scripts,
@@ -136,14 +163,22 @@ The CLI refusal is also checked. The repository secret scan found no leaks; stag
 identifier checks found no unexplained personal/company identifiers, email addresses,
 credential patterns, phone numbers or Discord IDs. Fictional test addresses are retained.
 
+Two preliminary follow-up runs each had one native PowerShell process exit 139 without
+output, in different cases. Twelve isolated repetitions of the first case all returned
+the expected refusal. Forced termination was limited to the unsafe-call fakes and body
+breakpoints, retaining normal exit for top-level completion; the final run also restricted
+filesystem writes to test scratch. The final full run passed. The native crash cause was
+not established; neither retries nor relaxed assertions were added to the tests. The
+earlier failures remain recorded and other-platform validation remains necessary.
+
 The real-policy tests never mock the read-only guard. The E2E matrix exercises all 51
 catalog tasks with expected outcomes, including no approved-plan recorder. It now
-checks successful read completion and exact write refusal, not merely absence of writes.
+checks successful read completion and expected write-refusal text, not merely absence of writes.
 Legacy mutation-unit tests deliberately mock the policy against fake APIs; GDAP hostless
 runspaces do so only in a temporary test copy. Those tests do not prove production write
 availability. Azure legacy tests explicitly remove the block only in copies inside
 Pester TestDrive. The separate unmodified-policy matrix invokes every script and imports
-every module in fresh processes, requiring the exact refusal and no exported functions.
+every module in fresh processes, requiring the expected refusal text and no exported functions.
 No try/catch wraps the tested invocation. Sign-in, network, browser, write and protected-body
 canaries fail the test if reached; the normal caller must not continue after a script
 refusal. Import errors can be suppressed only if the module and exports remain absent.
@@ -164,7 +199,7 @@ Do not represent this as exhaustive certification of every file or zero risk wit
 
 ## Before production use
 
-1. Complete the fresh independent review and address any remaining release blockers.
+1. Obtain repository-owner publication approval; the R5-1/R5-2 follow-up checks are complete.
 2. In a disposable Windows tenant, use a separate reader identity to validate all 16 read
    tasks, Exchange imports, tenant switching, SDK/token scope agreement, existing broad
    consent refusal and intentional consent handling. Determine the least role each

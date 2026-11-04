@@ -39,7 +39,9 @@ they do not automatically upgrade the snapshot. For a later snapshot, use a new
 `-InstallPath` and transfer only the local settings you need from the old directory.
 The new bootstrap requires safety baseline 3 and refuses older cached snapshots,
 including the earlier candidates with suppressible refusal errors. Existing installed commands and deployed
-runbooks are not upgraded automatically.
+runbooks are not upgraded automatically. A refusal leaves the old `cloudwright` command
+active. Follow the complete replacement command printed by the refusal, then open a fresh
+PowerShell session and confirm `cloudwright version` reports `0.2.2` before using it.
 
 After the first install, just run `cloudwright` in any PowerShell 7 session. To
 download without opening the menu or to choose a location, save the bootstrap and run:

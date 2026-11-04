@@ -75,7 +75,23 @@ param(
             throw "Unrecognized Cloudwright download record at '$markerPath'. Choose a new -InstallPath."
         }
         if (-not $record.PSObject.Properties['SafetyBaseline'] -or $record.SafetyBaseline -ne 3) {
-            throw 'This cached Cloudwright snapshot predates mandatory Cloudwright safe mode. It will not be launched. Keep your local settings and install the reviewed release into a NEW -InstallPath.'
+            do {
+                $newDestination = Join-Path (Split-Path -Parent $destination) ('toolkit-safe-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+            } while (Test-Path -LiteralPath $newDestination)
+            $pathLiteral = "'$([System.Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent($newDestination))'"
+            $reinstall = "& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/josephraguilar/cloudwright/main/Get-Cloudwright.ps1'))) -InstallPath $pathLiteral -NoLaunch"
+            if ($ModulePath) {
+                $moduleBase = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ModulePath)
+                $reinstall += " -ModulePath '$([System.Management.Automation.Language.CodeGeneration]::EscapeSingleQuotedStringContent($moduleBase))'"
+            }
+            throw @"
+This cached Cloudwright snapshot at '$destination' predates mandatory Cloudwright safe mode.
+Any existing cloudwright command has NOT been updated or disabled. It can still launch older code that changes Azure and Microsoft 365 tenants. Do not use that command until you replace the installation.
+Run this command to install into a new directory and re-point cloudwright without opening a tenant tool:
+$reinstall
+Then open a fresh PowerShell session and run: cloudwright version
+Confirm it reports 0.2.2 before using it. Your old files and local settings remain at '$destination'; transfer only the settings you need.
+"@
         }
         foreach ($file in $requiredFiles) {
             if (-not (Test-Path -LiteralPath (Join-Path $destination $file) -PathType Leaf)) {

@@ -62,6 +62,12 @@ Bicep templates and documentation commands are reference material: Cloudwright c
 constrain someone invoking external Azure tools or deploying a template separately.
 Learn generates text only; copied commands can change or delete resources when executed
 outside Learn. Its own Graph lookups reject broad sessions.
+Learn's optional Azure pick-list sign-in still reuses the current Azure context and inherits
+SDK autosave settings. It does not reduce the account's Azure RBAC permissions or constrain
+the session to this process; Azure credentials can persist for later sessions. Use
+`cloudwright learn -Contoso -Console` for offline learning with privileged accounts.
+`-NoSignIn` skips sign-in prompts but does not clear existing contexts or stored tokens.
+Use a reader identity for live lookup evaluation. See [Microsoft's context persistence documentation](https://learn.microsoft.com/powershell/azure/context-persistence).
 See [the review and remaining requirements](SECURITY-REVIEW.md).
 
 The policy protects the reviewed toolkit's behavior. It cannot constrain modified source,
@@ -75,7 +81,11 @@ keep local settings and reports out of Git and shared folders.
 The new bootstrap refuses cached snapshots without safety baseline 3 and preserves their
 files. Install the reviewed release into a **new `-InstallPath`**, transfer only necessary
 local settings, and verify `cloudwright version` reports `0.2.2`. A previously installed
-command still uses its old checkout until reinstalled. Previously deployed Automation
+command still uses its old checkout until reinstalled. **A bootstrap refusal does not
+disable that old command.** The refusal now prints a complete command to install into a
+fresh directory and replace the launcher registration, preserving custom module paths.
+Run that command, then verify the version in a fresh PowerShell session before using it.
+Previously deployed Automation
 runbooks and already-loaded old modules also retain their old behavior; use a fresh
 PowerShell process with the reviewed installation. The marker checks compatibility,
 not cryptographic integrity. The new archive and checkout must declare baseline 3 too.
@@ -90,7 +100,7 @@ own replacement or defend against a compromised distribution path.
 Safety tests exercise the unmodified policy against fake APIs, including forged plans,
 malformed commands, broad sessions, and tenant mismatches. End-to-end tests invoke every
 catalog task without an approval recorder: read tasks must complete against fixtures,
-write tasks must return the exact safe-mode refusal, and none may reach a write or browser.
+write tasks must return the expected safe-mode refusal text, and none may reach a write or browser.
 An unrelated error fails the test. The fake Exchange session enforces the imported
 command list, and the tenant-lookup canary runs under StrictMode. Legacy mutation-unit tests mock the policy against fake APIs to retain
 algorithm coverage; GDAP runspace tests override it only in a temporary test copy.
@@ -104,7 +114,13 @@ SilentlyContinue, Ignore and Inquire; global error preferences and wildcard
 `PSDefaultParameterValues` set to SilentlyContinue/Ignore; and dot-sourced script calls
 under those global preferences. It covers all Azure runtime scripts and module/manifest
 imports, all M365 write entry scripts, and direct authorization/generation checks.
-Every probe requires the specific refusal and no continuation into the protected body.
+Each probe requires its expected refusal text and no protected-body/side-effect marker.
+M365 entry tests currently match a shared refusal prefix; they do not independently prove
+guard position or exercise every post-sign-in validation under suppressed errors.
+Some private-module wildcard-default cases are redundant. The independent r5 review
+checked those boundaries separately and found no current bypass; stronger regression
+coverage remains follow-up work. Probe canaries use `Environment.Exit` to terminate their
+child process immediately; run adversarial tests without network access or credentials.
 These checks caught bypasses in the preceding candidate that `Should -Throw` tests missed:
 wrapping a call in `try/catch` changes PowerShell error behavior. Representative negative
 controls confirm the old candidate reaches a canary and the fixed candidate refuses.
