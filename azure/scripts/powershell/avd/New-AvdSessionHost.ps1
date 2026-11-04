@@ -212,7 +212,7 @@ param(
 #   WHY    ActiveDirectory needs a domain and credential; Gallery needs gallery
 #          names. PowerShell cannot express "mandatory if" in the param block.
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

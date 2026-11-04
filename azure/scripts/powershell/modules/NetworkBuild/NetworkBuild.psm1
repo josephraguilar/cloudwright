@@ -10,7 +10,7 @@
 #          once, which writes the whole thing back. Every edit here re-reads the
 #          VNet first so it never writes a stale copy over someone else's change.
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

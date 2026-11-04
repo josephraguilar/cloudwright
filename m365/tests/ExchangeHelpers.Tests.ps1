@@ -347,7 +347,7 @@ Describe 'ExchangeHelpers changes (exact targets, plan and run)' {
             Mock -ModuleName ExchangeHelpers Get-Mailbox { New-TestRecipient UserMailbox 'Jane' 'jane@contoso.com' @{ ForwardingAddress = $null; ForwardingSmtpAddress = $null; DeliverToMailboxAndForward = $false } }
         }
         It 'refuses a target that is not in the tenant (a typo) unless -AllowExternal' {
-            { Set-M365MailboxForwarding -Identity jane@contoso.com -ForwardTo manager@cotnoso.com 6>$null } | Should -Throw '*not found in this tenant; pass -AllowExternal to forward outside*'
+            { Set-M365MailboxForwarding -Identity jane@contoso.com -ForwardTo manager@cotnoso.example 6>$null } | Should -Throw '*not found in this tenant; pass -AllowExternal to forward outside*'
             (Get-Write 'Set-Mailbox').Count | Should -Be 0
         }
         It 'forwards outside only with -AllowExternal, as SMTP forwarding' {

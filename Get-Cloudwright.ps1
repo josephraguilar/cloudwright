@@ -74,7 +74,7 @@ param(
             $record.Commit -notmatch '^[0-9a-f]{40}$') {
             throw "Unrecognized Cloudwright download record at '$markerPath'. Choose a new -InstallPath."
         }
-        if (-not $record.PSObject.Properties['SafetyBaseline'] -or $record.SafetyBaseline -ne 2) {
+        if (-not $record.PSObject.Properties['SafetyBaseline'] -or $record.SafetyBaseline -ne 3) {
             throw 'This cached Cloudwright snapshot predates mandatory Cloudwright safe mode. It will not be launched. Keep your local settings and install the reviewed release into a NEW -InstallPath.'
         }
         foreach ($file in $requiredFiles) {
@@ -121,11 +121,11 @@ param(
                 }
             }
             $manifest = Import-PowerShellDataFile (Join-Path $source 'Cloudwright.psd1')
-            if ($manifest.PrivateData['CloudwrightSafetyBaseline'] -ne 2) {
+            if ($manifest.PrivateData['CloudwrightSafetyBaseline'] -ne 3) {
                 throw 'This archive predates mandatory Cloudwright safe mode. It will not be installed or launched.'
             }
             [ordered]@{
-                Tool = 'Cloudwright'; SchemaVersion = 1; SafetyBaseline = 2
+                Tool = 'Cloudwright'; SchemaVersion = 1; SafetyBaseline = 3
                 Commit = $head.sha
             } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $source $markerName) -Encoding utf8
             # Directory.Move fails if another invocation created the destination in the meantime.

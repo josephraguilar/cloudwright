@@ -3,7 +3,7 @@
 #   WHY    Modules are imported by every script. A typo here breaks everything,
 #          so catch it at import time.
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 Set-StrictMode -Version Latest
 #endregion

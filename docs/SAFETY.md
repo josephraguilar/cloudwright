@@ -1,6 +1,6 @@
 # Cloudwright safe mode
 
-Cloudwright 0.2.1 applies safe mode to **all of Cloudwright**. Learn generates text and
+Cloudwright 0.2.2 applies safe mode to **all of Cloudwright**. Learn generates text and
 performs optional read lookups; option 3 / `cloudwright m365` permits tenant inspections
 and reports. Azure/AVD execution is blocked pending a reviewed read-only implementation.
 There is no supported flag, environment variable, menu toggle, or approval that enables
@@ -50,10 +50,13 @@ See Microsoft's documentation for [Graph authentication and application isolatio
 and [Exchange RBAC](https://learn.microsoft.com/exchange/permissions-exo/permissions-exo).
 
 **Azure execution is disabled, including direct calls.** Every runtime PowerShell file
-throws before its first executable statement: scripts, modules, GUI pages, guest scripts
-and the Automation runbook. Module imports fail without exporting functions, even with
-`-ErrorAction Continue`. The CLI entry point exits with an error. These blocks do not
-depend on a shared policy file, session preference, environment variable or confirmation.
+starts with a separate scope that sets `$ErrorActionPreference = 'Stop'` and throws:
+scripts, modules, GUI pages, guest scripts and the Automation runbook. Module loading
+stops without exporting functions; `Import-Module` can suppress its caller-facing error
+without loading the module. The CLI returns an error when sourced or executed.
+M365 authorization and Learn validation checks also set their own error preference.
+There is no supported override. The tested preference combinations are listed below;
+this is not a guarantee about every PowerShell version or host configuration.
 The retained implementation still needs review before any read-only Azure features return.
 Bicep templates and documentation commands are reference material: Cloudwright cannot
 constrain someone invoking external Azure tools or deploying a template separately.
@@ -69,13 +72,14 @@ keep local settings and reports out of Git and shared folders.
 
 ## Existing installations
 
-The new bootstrap refuses cached snapshots without safety baseline 2 and preserves their
+The new bootstrap refuses cached snapshots without safety baseline 3 and preserves their
 files. Install the reviewed release into a **new `-InstallPath`**, transfer only necessary
-local settings, and verify `cloudwright version` reports `0.2.1`. A previously installed
+local settings, and verify `cloudwright version` reports `0.2.2`. A previously installed
 command still uses its old checkout until reinstalled. Previously deployed Automation
 runbooks and already-loaded old modules also retain their old behavior; use a fresh
 PowerShell process with the reviewed installation. The marker checks compatibility,
-not cryptographic integrity. The new archive and checkout must declare baseline 2 too.
+not cryptographic integrity. The new archive and checkout must declare baseline 3 too.
+Baseline 2 (the 0.2.1 candidate) had suppressible refusal errors and is also rejected.
 
 Prefer a reviewed, commit-pinned checkout for administrative use. `irm | iex` from `main`
 executes what is served at that moment; safeguards in that code cannot authenticate their
@@ -93,6 +97,17 @@ algorithm coverage; GDAP runspace tests override it only in a temporary test cop
 Azure legacy algorithm tests use copies inside Pester TestDrive with the release block
 removed; they are not evidence that production functions can execute. Separate release
 tests use unmodified source for every script and isolated processes for module imports.
+
+The root refusal matrix runs each operation in a fresh PowerShell 7.6.9 process without
+`try/catch` around the call. It checks default settings; common `-ErrorAction`
+SilentlyContinue, Ignore and Inquire; global error preferences and wildcard
+`PSDefaultParameterValues` set to SilentlyContinue/Ignore; and dot-sourced script calls
+under those global preferences. It covers all Azure runtime scripts and module/manifest
+imports, all M365 write entry scripts, and direct authorization/generation checks.
+Every probe requires the specific refusal and no continuation into the protected body.
+These checks caught bypasses in the preceding candidate that `Should -Throw` tests missed:
+wrapping a call in `try/catch` changes PowerShell error behavior. Representative negative
+controls confirm the old candidate reaches a canary and the fixed candidate refuses.
 
 No live tenant was connected or changed. Mocked tests do not establish real SDK behavior,
 permissions, tenant-specific correctness, or Windows desktop behavior. Validate those

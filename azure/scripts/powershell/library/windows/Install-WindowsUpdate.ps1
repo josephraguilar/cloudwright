@@ -10,7 +10,7 @@
 #>
 param([string]$Restart = 'no')
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $session = New-Object -ComObject Microsoft.Update.Session
 $found = $session.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Software' and IsHidden=0").Updates

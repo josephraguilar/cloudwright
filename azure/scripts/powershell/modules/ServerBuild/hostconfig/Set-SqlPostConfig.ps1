@@ -15,7 +15,7 @@ param(
     [string]$SaPassword = ''
 )
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $ErrorActionPreference = 'Stop'
 $instance = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL' -ErrorAction Stop).MSSQLSERVER

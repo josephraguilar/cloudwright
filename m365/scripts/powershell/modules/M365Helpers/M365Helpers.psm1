@@ -56,6 +56,7 @@ function Get-M365Settings {
     #   WHAT   Default to <repo>/config/msp.settings.local.json.
     #   WHY    The module lives three levels below the repo root. Resolving from
     #          $PSScriptRoot means the scripts work from any current directory.
+    $ErrorActionPreference = 'Stop'
     if (-not $Path) {
         $Path = Join-Path $PSScriptRoot '..' '..' '..' '..' 'config' 'msp.settings.local.json'
     }
@@ -121,6 +122,7 @@ function Get-M365ClientConfig {
     )
 
     #region 1. Locate and parse ---------------------------------------------
+    $ErrorActionPreference = 'Stop'
     if (-not $Path) {
         if (-not $Name) { throw 'Pass -Name <client> or -Path <file>.' }
         $Path = Join-Path $PSScriptRoot '..' '..' '..' '..' 'config' 'clients' "$Name.local.json"
@@ -218,6 +220,7 @@ function Resolve-M365TenantId {
         [Parameter(Mandatory)]
         [string]$TenantId
     )
+    $ErrorActionPreference = 'Stop'
     if ($TenantId -match '^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$') { return $TenantId.ToLowerInvariant() }
     $key = $TenantId.Trim().ToLowerInvariant()
     if ($key -notmatch '^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$') {
@@ -263,6 +266,7 @@ function Assert-M365SameTenant {
         [Parameter()]
         [string[]]$AllowUnresolved = @()
     )
+    $ErrorActionPreference = 'Stop'
     $resolved = [ordered]@{}
     foreach ($label in $Identifier.Keys) {
         $value = "$($Identifier[$label])"
@@ -315,6 +319,7 @@ function Assert-M365Graph {
     #   WHY    'Connect-MgGraph is not recognized' is a confusing first error.
     #   GOTCHA Checked at call time, not import time, so tests can load this
     #          module on a machine without the Graph SDK.
+    $ErrorActionPreference = 'Stop'
     $readOnly = Test-M365ReadOnly
     if ($readOnly) { Assert-M365ReadOnlyScope -Scopes $Scopes }
     if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication)) {
@@ -394,6 +399,7 @@ function Get-M365ExchangeTenant {
     #>
     [CmdletBinding()]
     param()
+    $ErrorActionPreference = 'Stop'
     $cmd = Get-Command -Name Get-AcceptedDomain -ErrorAction SilentlyContinue
     if (-not $cmd) { return $null }
     try {
@@ -452,6 +458,7 @@ function Assert-M365Exchange {
     )
 
     #region 1. Preflight ------------------------------------------------------
+    $ErrorActionPreference = 'Stop'
     if (-not (Get-Module -ListAvailable -Name ExchangeOnlineManagement)) {
         throw 'ExchangeOnlineManagement is not installed. Run: Install-Module ExchangeOnlineManagement -Scope CurrentUser'
     }
@@ -780,6 +787,8 @@ function Add-HuduPassword {
     )
 
     #region 1. Check the API key is there before planning anything ----------------
+    $ErrorActionPreference = 'Stop'
+    Assert-M365WriteAllowed
     if (-not $Settings) { $Settings = Get-M365Settings }
     $envVar = if ($Settings.hudu.apiKeyEnvVar) { $Settings.hudu.apiKeyEnvVar } else { 'HUDU_API_KEY' }
     if (-not [Environment]::GetEnvironmentVariable($envVar)) { throw "Hudu API key not found in environment variable $envVar." }
@@ -817,6 +826,7 @@ function Invoke-M365HuduRequest {
         [Parameter()]
         [System.Collections.IDictionary]$Body
     )
+    $ErrorActionPreference = 'Stop'
     if ($Method -ne 'Get') { Assert-M365WriteAllowed }
     $settings = Get-M365Settings
     $envVar = if ($settings.hudu.apiKeyEnvVar) { $settings.hudu.apiKeyEnvVar } else { 'HUDU_API_KEY' }
@@ -1263,6 +1273,7 @@ function Invoke-M365Change {
 
     # The release is read-only, including direct module calls and approved plans.
     # No CLI flag, environment variable, or confirmation can unlock tenant writes.
+    $ErrorActionPreference = 'Stop'
     Assert-M365WriteAllowed
 
     #region 1. Render ------------------------------------------------------------

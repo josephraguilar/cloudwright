@@ -453,6 +453,7 @@ function Open-GdapApprovalPage {
         [Parameter()]
         [switch]$NoPrivate
     )
+    $ErrorActionPreference = 'Stop'
     if (Test-M365ReadOnly) { throw 'Safe mode: opening a customer access approval page is disabled.' }
     $uri = $null
     if (-not [uri]::TryCreate($Url, [UriKind]::Absolute, [ref]$uri) -or

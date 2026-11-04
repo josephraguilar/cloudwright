@@ -12,7 +12,7 @@ param()
 
 # --- Users --------------------------------------------------------------------
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 function New-EntraUsersPage {
     $page = @{ Key = 'NavEntraUsers'; Form = New-Form }

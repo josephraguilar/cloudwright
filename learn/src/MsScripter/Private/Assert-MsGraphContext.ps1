@@ -13,6 +13,7 @@ function Assert-MsGraphContext {
     param([Parameter()] [ValidatePattern('^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$')] [string]$TenantId)
 
     # Read-only. Add to this list only with a *.Read.* scope and a note in docs/architecture.md.
+    $ErrorActionPreference = 'Stop'
     $readOnlyScopes = @('User.Read.All', 'Group.Read.All', 'Directory.Read.All', 'Organization.Read.All')
 
     if (-not (Get-Module -ListAvailable -Name Microsoft.Graph.Authentication)) {

@@ -128,12 +128,12 @@ Describe 'SecurityHelpers' {
     Context 'Get-M365SecurityFact derived values (mocked Graph, Exchange skipped)' {
         BeforeEach {
             Mock -ModuleName SecurityHelpers Get-MgPolicyIdentitySecurityDefaultEnforcementPolicy { [pscustomobject]@{ IsEnabled = $false } }
-            Mock -ModuleName SecurityHelpers Get-MgDomain { @([pscustomobject]@{ Id = 'c.com'; IsVerified = $true; IsInitial = $false; PasswordValidityPeriodInDays = 90 }, [pscustomobject]@{ Id = 'c.onmicrosoft.com'; IsVerified = $true; IsInitial = $true; PasswordValidityPeriodInDays = 2147483647 }) }
+            Mock -ModuleName SecurityHelpers Get-MgDomain { @([pscustomobject]@{ Id = 'customer.example'; IsVerified = $true; IsInitial = $false; PasswordValidityPeriodInDays = 90 }, [pscustomobject]@{ Id = 'c.onmicrosoft.com'; IsVerified = $true; IsInitial = $true; PasswordValidityPeriodInDays = 2147483647 }) }
             Mock -ModuleName SecurityHelpers Get-MgPolicyAuthorizationPolicy { [pscustomobject]@{ AllowedToUseSspr = $true; AllowInvitesFrom = 'everyone'; DefaultUserRolePermissions = [pscustomobject]@{ PermissionGrantPoliciesAssigned = @() } } }
             Mock -ModuleName SecurityHelpers Get-MgDirectoryRole { [pscustomobject]@{ Id = 'ga' } }
-            Mock -ModuleName SecurityHelpers Get-MgDirectoryRoleMember { @([pscustomobject]@{ Id = '1'; AdditionalProperties = @{ userPrincipalName = 'a@c.com' } }, [pscustomobject]@{ Id = '2'; AdditionalProperties = @{ userPrincipalName = 'breakglass@c.onmicrosoft.com' } }) }
+            Mock -ModuleName SecurityHelpers Get-MgDirectoryRoleMember { @([pscustomobject]@{ Id = '1'; AdditionalProperties = @{ userPrincipalName = 'a@customer.example' } }, [pscustomobject]@{ Id = '2'; AdditionalProperties = @{ userPrincipalName = 'breakglass@c.onmicrosoft.com' } }) }
             Mock -ModuleName SecurityHelpers Get-MgUser { [pscustomobject]@{ Id = 'bg'; UserPrincipalName = 'breakglass@c.onmicrosoft.com' } }
-            Mock -ModuleName SecurityHelpers Get-MgOrganization { [pscustomobject]@{ TechnicalNotificationMails = @('owner@c.com', 'support@msp.example') } }
+            Mock -ModuleName SecurityHelpers Get-MgOrganization { [pscustomobject]@{ TechnicalNotificationMails = @('owner@customer.example', 'support@msp.example') } }
         }
         It 'derives mfaEnforced and legacyAuthBlocked from CA when Security Defaults is off' {
             Mock -ModuleName SecurityHelpers Get-MgIdentityConditionalAccessPolicy {
@@ -164,7 +164,7 @@ Describe 'SecurityHelpers' {
                 New-CaPolicy -Name 'MFA all' -Exclude 'bg'
                 New-CaPolicy -Name 'Block legacy' -Clients 'exchangeActiveSync', 'other' -Controls 'block'
             }
-            Mock -ModuleName SecurityHelpers Get-MgDirectoryRoleMember { @([pscustomobject]@{ Id = '1'; AdditionalProperties = @{ userPrincipalName = 'a@c.com' } }) }
+            Mock -ModuleName SecurityHelpers Get-MgDirectoryRoleMember { @([pscustomobject]@{ Id = '1'; AdditionalProperties = @{ userPrincipalName = 'a@customer.example' } }) }
             Mock -ModuleName SecurityHelpers Get-MgOrganization { [pscustomobject]@{ TechnicalNotificationMails = @() } }
             $r = Get-M365SecurityFact -Settings $script:FakeSettings -SkipExchange
             $r.Facts.legacyAuthBlocked | Should -BeTrue
@@ -266,16 +266,16 @@ Describe 'SecurityHelpers' {
             (Get-M365SecurityFact -Settings $script:FakeSettings).Facts.autoForwardingBlocked | Should -BeTrue
         }
         It 'reports shared-mailbox sign-in Unknown (not Pass) when an account cannot be read' {
-            Mock -ModuleName SecurityHelpers Get-Mailbox { [pscustomobject]@{ PrimarySmtpAddress = 'info@c.com'; ExternalDirectoryObjectId = 'id-1' } }
+            Mock -ModuleName SecurityHelpers Get-Mailbox { [pscustomobject]@{ PrimarySmtpAddress = 'info@customer.example'; ExternalDirectoryObjectId = 'id-1' } }
             Mock -ModuleName SecurityHelpers Get-MgUser { if ($UserId) { throw 'Request throttled' } }
             $r = Get-M365SecurityFact -Settings $script:FakeSettings
             $r.Facts.sharedMailboxSignInBlocked | Should -BeNullOrEmpty
-            $r.Errors['sharedMailboxSignInBlocked'] | Should -Match 'info@c.com'
+            $r.Errors['sharedMailboxSignInBlocked'] | Should -Match 'info@customer.example'
         }
         It 'passes shared-mailbox sign-in when there are no shared mailboxes, and fails one with sign-in on' {
             (Get-M365SecurityFact -Settings $script:FakeSettings).Facts.sharedMailboxSignInBlocked | Should -BeTrue
-            Mock -ModuleName SecurityHelpers Get-Mailbox { [pscustomobject]@{ PrimarySmtpAddress = 'info@c.com'; ExternalDirectoryObjectId = 'id-1' } }
-            Mock -ModuleName SecurityHelpers Get-MgUser { if ($UserId) { [pscustomobject]@{ AccountEnabled = $true; UserPrincipalName = 'info@c.com' } } }
+            Mock -ModuleName SecurityHelpers Get-Mailbox { [pscustomobject]@{ PrimarySmtpAddress = 'info@customer.example'; ExternalDirectoryObjectId = 'id-1' } }
+            Mock -ModuleName SecurityHelpers Get-MgUser { if ($UserId) { [pscustomobject]@{ AccountEnabled = $true; UserPrincipalName = 'info@customer.example' } } }
             (Get-M365SecurityFact -Settings $script:FakeSettings).Facts.sharedMailboxSignInBlocked | Should -BeFalse
         }
         It 'reports a hidden-contact check Unknown when the read fails, and Fail when the address is a mailbox' {

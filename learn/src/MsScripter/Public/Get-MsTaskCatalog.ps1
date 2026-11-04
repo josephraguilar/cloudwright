@@ -18,6 +18,7 @@ function Get-MsTaskCatalog {
         [Parameter()] [string]$CatalogRoot = $script:CatalogRoot,
         [Parameter()] [switch]$Strict
     )
+    $ErrorActionPreference = 'Stop'
     $root = (Resolve-Path $CatalogRoot).Path
     $files = Get-ChildItem -Path $root -Filter '*.psd1' -Recurse -File | Where-Object { $_.Name -notlike '_*' } | Sort-Object FullName
     $errors = [System.Collections.Generic.List[string]]::new()

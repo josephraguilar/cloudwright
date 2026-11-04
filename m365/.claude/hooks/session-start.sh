@@ -1,4 +1,6 @@
 #!/bin/bash
+# PowerShell expressions must reach pwsh literally, without Bash expansion.
+# shellcheck disable=SC2016
 # SessionStart hook for Claude Code cloud sessions.
 #   WHAT   Installs PowerShell 7, Pester and PSScriptAnalyzer so the same checks
 #          .github/workflows/validate.yml runs (lint + tests) can run in the session.
@@ -15,7 +17,7 @@ fi
 
 PWSH_VERSION="7.4.6"
 PWSH_SHA256="6f6015203c47806c5cc444c19d8ed019695e610fbd948154264bf9ca8e157561"
-PESTER_VERSION="6.2.0"
+PESTER_VERSION="5.7.1"
 PSSA_VERSION="1.25.0"
 PWSH_DIR="/opt/microsoft/powershell/7"
 MODULE_DIR="${HOME}/.local/share/powershell/Modules"

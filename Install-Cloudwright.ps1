@@ -57,7 +57,7 @@ foreach ($required in 'Cloudwright.psd1', 'Cloudwright.psm1', 'learn/Start-MsScr
     }
 }
 $manifest = Import-PowerShellDataFile (Join-Path $sourceRoot 'Cloudwright.psd1')
-if ($manifest.PrivateData['CloudwrightSafetyBaseline'] -ne 2) {
+if ($manifest.PrivateData['CloudwrightSafetyBaseline'] -ne 3) {
     throw 'This checkout predates mandatory Cloudwright safe mode. Use the reviewed release.'
 }
 #endregion

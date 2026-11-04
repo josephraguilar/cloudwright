@@ -12,6 +12,7 @@ function ConvertFrom-MsFieldText {
         [Parameter()] [AllowEmptyString()] [string]$Text,
         [Parameter(Mandatory)] [string]$Type
     )
+    $ErrorActionPreference = 'Stop'
     switch ($Type) {
         'Hashtable' {
             $result = @{}

@@ -33,7 +33,7 @@ param(
 #          Users get Modify on the root only, CREATOR OWNER gets Modify on what they
 #          create, Administrators get Full Control everywhere.
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $drive = 'Y:'
 $null = net use $drive $ShareUnc /user:$UserName $Key /persistent:no

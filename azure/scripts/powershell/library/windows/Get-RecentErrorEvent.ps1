@@ -10,7 +10,7 @@
 #>
 param([string]$Hours = '24', [string]$Max = '40')
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $since = (Get-Date).AddHours(-[int]$Hours)
 Get-WinEvent -FilterHashtable @{ LogName = 'System', 'Application'; Level = 1, 2; StartTime = $since } -MaxEvents ([int]$Max) -ErrorAction SilentlyContinue |

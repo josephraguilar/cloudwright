@@ -14,6 +14,7 @@ function Test-M365ReadOnly {
 function Assert-M365WriteAllowed {
     [CmdletBinding()]
     param()
+    $ErrorActionPreference = 'Stop'
     if (Test-M365ReadOnly) {
         throw 'Microsoft 365 safe mode: tenant and Hudu changes are disabled in this release. Only read-only tasks are available.'
     }
@@ -30,6 +31,7 @@ function Get-M365ReadOnlyScope {
 
 function Assert-M365ReadOnlyScope {
     param([AllowEmptyCollection()][string[]]$Scopes)
+    $ErrorActionPreference = 'Stop'
     $allowed = @(Get-M365ReadOnlyScope)
     if (-not $Scopes -or @($Scopes | Where-Object { $_ -notin $allowed }).Count) {
         throw 'Microsoft 365 safe mode refuses write permissions or unknown Graph scopes.'

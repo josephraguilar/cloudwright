@@ -2,7 +2,7 @@
 .SYNOPSIS
     Forwards a mailbox to another address (keeping a copy), or clears forwarding.
 .DESCRIPTION
-    Internal targets use a recipient reference, external ones an SMTP address. A target that does not resolve to a recipient in this tenant is external, and external forwarding is refused unless -AllowExternal (so a typo like manager@cotnoso.com never becomes silent external forwarding). External automatic forwarding may also be blocked by the outbound spam policy (the baseline recommends that).
+    Internal targets use a recipient reference, external ones an SMTP address. A target that does not resolve to a recipient in this tenant is external, and external forwarding is refused unless -AllowExternal (so a typo like manager@cotnoso.example never becomes silent external forwarding). External automatic forwarding may also be blocked by the outbound spam policy (the baseline recommends that).
 .PARAMETER Identity
     The mailbox.
 .PARAMETER ForwardTo

@@ -46,7 +46,7 @@ param(
 #   GOTCHA These keys are read at logon. Changing them does not affect a user who is
 #          already signed in.
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $key = 'HKLM:\SOFTWARE\FSLogix\Profiles'
 $null = New-Item -Path $key -Force

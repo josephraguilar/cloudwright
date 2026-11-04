@@ -20,6 +20,7 @@ function Resolve-MsSource {
         [Parameter(Mandatory)] [hashtable]$Answers,
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]]$Fields
     )
+    $ErrorActionPreference = 'Stop'
     $verb = ($Source.Cmdlet -split '-')[0]
     if ($verb -notin 'Get', 'Find', 'Search', 'Resolve') { throw "Refusing to run '$($Source.Cmdlet)': lookups must be read-only." }
 

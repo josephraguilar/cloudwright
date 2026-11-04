@@ -35,7 +35,7 @@ param(
 #   WHAT   Strict mode, fail fast, load AzHelpers, confirm Azure context.
 #   WHY    Same opening as every script in this repo. See _template.ps1.
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

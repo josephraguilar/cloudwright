@@ -7,7 +7,7 @@
 #>
 param()
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $svc = Get-Service frxsvc -ErrorAction SilentlyContinue
 "Service: $(if ($svc) { $svc.Status } else { 'not installed' })"

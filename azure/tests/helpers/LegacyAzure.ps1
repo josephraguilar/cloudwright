@@ -13,7 +13,7 @@ function New-LegacyAzureTestCopy {
     foreach ($tree in 'scripts', 'runbooks') {
         Copy-Item (Join-Path $source $tree) -Destination $full -Recurse
     }
-    $guard = "throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'"
+    $guard = "& { `$ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }"
     foreach ($file in Get-ChildItem $full -Recurse -File | Where-Object Extension -in '.ps1', '.psm1') {
         $text = [IO.File]::ReadAllText($file.FullName)
         $ast = [System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$null, [ref]$null)

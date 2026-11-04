@@ -30,10 +30,10 @@ Describe 'Cloudwright download bootstrap' {
 
     It 'downloads one pinned snapshot anonymously and installs a working command' {
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
-        cloudwright version | Should -Be '0.2.1'
+        cloudwright version | Should -Be '0.2.2'
         $record = Get-Content (Join-Path $script:Destination 'Cloudwright.download.json') -Raw | ConvertFrom-Json
         $record.Commit | Should -Be $script:Commit
-        $record.SafetyBaseline | Should -Be 2
+        $record.SafetyBaseline | Should -Be 3
         $location = Get-Content (Join-Path $script:ModuleBase 'Cloudwright/Cloudwright.location.json') -Raw | ConvertFrom-Json
         $location.RepositoryRoot | Should -Be $script:Destination
         Should -Invoke Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
@@ -53,7 +53,7 @@ Describe 'Cloudwright download bootstrap' {
             Invoke-Expression ('& {' + $code + "`n} -InstallPath `$script:Destination -ModulePath `$script:ModuleBase -NoLaunch")
         } finally { Pop-Location }
         $ErrorActionPreference | Should -Be $before
-        cloudwright version | Should -Be '0.2.1'
+        cloudwright version | Should -Be '0.2.2'
     }
 
     It 'accepts a literal text-to-IEX pipeline with no script invocation context' {
@@ -99,7 +99,7 @@ Describe 'Cloudwright download bootstrap' {
     }
 
     It 'refuses to reuse a snapshot with safety baseline <Baseline> and preserves its local files' -ForEach @(
-        @{ Baseline = 0 }, @{ Baseline = 1 }
+        @{ Baseline = 0 }, @{ Baseline = 1 }, @{ Baseline = 2 }
     ) {
         & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch
         $marker = Join-Path $script:Destination 'Cloudwright.download.json'
@@ -148,7 +148,7 @@ Describe 'Cloudwright download bootstrap' {
             $null = New-Item -ItemType Directory -Path $DestinationPath -Force
             Copy-Item (Join-Path $TestDrive 'snapshot') -Destination $copy -Recurse
             $manifest = Join-Path $copy 'Cloudwright.psd1'
-            (Get-Content $manifest -Raw).Replace('CloudwrightSafetyBaseline = 2', 'CloudwrightSafetyBaseline = 1') | Set-Content $manifest
+            (Get-Content $manifest -Raw).Replace('CloudwrightSafetyBaseline = 3', 'CloudwrightSafetyBaseline = 1') | Set-Content $manifest
         }
         { & $script:Bootstrap -InstallPath $script:Destination -ModulePath $script:ModuleBase -NoLaunch } |
             Should -Throw '*archive predates mandatory Cloudwright safe mode*'

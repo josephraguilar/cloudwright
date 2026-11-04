@@ -28,6 +28,16 @@ and mock it; keep the stub identical across files, because the first file to run
 Release-policy tests in `Safety.Tests.ps1` use the unmodified source. Every direct script
 must throw the exact release refusal, and module imports must leave no exports even
 with `-ErrorAction Continue`. The checks include guest scripts and the Automation runbook.
+These checks alone do not detect suppressed-throw bypasses: Pester's `Should -Throw`
+wraps the call in `try/catch`, which changes PowerShell's error behavior.
+
+The root `tests/RefusalPreferences.Tests.ps1` suite therefore runs fresh processes without
+a catch around each invocation. It covers all runtime scripts, module files and manifests
+under default settings; common SilentlyContinue, Ignore and Inquire; global and wildcard
+default SilentlyContinue/Ignore; and dot-sourced scripts under those global preferences.
+Every probe requires the expected refusal and no body/side-effect canary. Module-import
+errors may be suppressed at the caller, but no module or exported function may remain.
+Run the root suite as well as this component suite when changing a release block.
 
 Legacy algorithm tests use `helpers/LegacyAzure.ps1` to make an isolated copy inside
 Pester TestDrive and remove the release block only from that copy. They use fake APIs

@@ -9,7 +9,7 @@ BeforeDiscovery {
 }
 BeforeAll {
     $script:AzureRoot = Split-Path $PSScriptRoot -Parent
-    $script:Guard = "throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'"
+    $script:Guard = "& { `$ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }"
     function Get-SafetyArguments {
         param([string]$Path)
         $command = Get-Command $Path
@@ -47,7 +47,7 @@ Describe 'Azure release boundary' {
             $ast.UsingStatements | Should -BeNullOrEmpty
             $ast.EndBlock.Traps | Should -BeNullOrEmpty
             $first = $ast.EndBlock.Statements[0]
-            $first | Should -BeOfType ([System.Management.Automation.Language.ThrowStatementAst])
+            $first | Should -BeOfType ([System.Management.Automation.Language.PipelineAst])
             $first.Extent.Text | Should -BeExactly $script:Guard -Because $file.FullName
             # Parameter binding precedes the block: only known local, read-only defaults are permitted.
             if ($ast.ParamBlock) {

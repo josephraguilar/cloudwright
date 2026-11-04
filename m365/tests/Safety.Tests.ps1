@@ -95,6 +95,8 @@ Describe 'Read-only authentication' {
             foreach ($fn in $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true)) { $functions[$fn.Name] = $fn.Body }
         }
         $queue = [System.Collections.Generic.Queue[object]]::new()
+        $builtins = @{}
+        foreach ($command in Get-Command -Module Microsoft.PowerShell.* -CommandType Cmdlet, Function) { $builtins[$command.Name] = $true }
         foreach ($task in Get-M365Task -ReadOnly) { $queue.Enqueue([System.Management.Automation.Language.Parser]::ParseFile($task.Path, [ref]$null, [ref]$null)) }
         $visited = @{}; $reads = @{}
         while ($queue.Count) {
@@ -103,7 +105,11 @@ Describe 'Read-only authentication' {
                 $name = $command.GetCommandName()
                 if (-not $name) { continue }
                 if ($functions.ContainsKey($name) -and -not $visited.ContainsKey($name)) { $visited[$name] = $true; $queue.Enqueue($functions[$name]) }
-                if ($name -match '^Get-(AcceptedDomain|Recipient|DistributionGroup|DkimSigningConfig|InboxRule|Mailbox|MailContact|AdminAuditLogConfig|AntiPhishPolicy|ExternalInOutlook|HostedOutboundSpamFilter|OrganizationConfig|TransportConfig)') { $reads[$name] = $true }
+                # All external Get-* commands must be imported, not just today's known
+                # nouns. Get-ConnectionInformation is local SDK connection metadata.
+                if ($name -like 'Get-*' -and -not $functions.ContainsKey($name) -and
+                    -not $builtins.ContainsKey($name) -and $name -notlike 'Get-Mg*' -and
+                    $name -ne 'Get-ConnectionInformation') { $reads[$name] = $true }
                 if ($name -eq 'Get-M365ExactRecipient') {
                     # Its dynamic Get-$Kind call defaults to Recipient; explicit kinds
                     # at reachable call sites must also be included.

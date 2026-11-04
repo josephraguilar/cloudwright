@@ -130,7 +130,9 @@ function Start-Cloudwright {
         }
     }
 
-    if ($Area -eq 'azure') { throw 'Cloudwright safe release: Azure/AVD administration is disabled pending a reviewed read-only implementation.' }
+    if ($Area -eq 'azure') {
+        & { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD administration is disabled pending a reviewed read-only implementation.' }
+    }
 
     $useConsole = $Console -or -not $IsWindows
     $scriptArguments = @()

@@ -23,6 +23,7 @@ function Expand-MsTemplate {
         [Parameter(Mandatory)] [hashtable]$Answers,
         [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]]$Fields
     )
+    $ErrorActionPreference = 'Stop'
     $byName = @{}
     foreach ($f in $Fields) { $byName[$f.Name] = $f }
 

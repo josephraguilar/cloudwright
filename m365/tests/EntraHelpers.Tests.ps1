@@ -160,13 +160,13 @@ Describe 'EntraHelpers module' {
 
     Context 'New-M365CloudUser (H4)' {
         It 'refuses an existing UPN without -AdoptExisting and writes nothing' {
-            $global:G.Users.Add((New-FakeUser 'svc@t.onmicrosoft.com' $script:Id.bob))
-            { New-M365CloudUser -UserPrincipalName svc@t.onmicrosoft.com -DisplayName A } | Should -Throw '*already exists*-AdoptExisting*'
+            $global:G.Users.Add((New-FakeUser 'svc@tenant.example' $script:Id.bob))
+            { New-M365CloudUser -UserPrincipalName svc@tenant.example -DisplayName A } | Should -Throw '*already exists*-AdoptExisting*'
             $global:G.Writes.Count | Should -Be 0
         }
         It 'adopts only with -AdoptExisting, and says the password was not changed' {
-            $global:G.Users.Add((New-FakeUser 'svc@t.onmicrosoft.com' $script:Id.bob))
-            $r = New-M365CloudUser -UserPrincipalName svc@t.onmicrosoft.com -DisplayName A -AdoptExisting -WarningVariable w -WarningAction SilentlyContinue
+            $global:G.Users.Add((New-FakeUser 'svc@tenant.example' $script:Id.bob))
+            $r = New-M365CloudUser -UserPrincipalName svc@tenant.example -DisplayName A -AdoptExisting -WarningVariable w -WarningAction SilentlyContinue
             $r.Adopted | Should -BeTrue
             $r.Created | Should -BeFalse
             $r.PasswordChanged | Should -BeFalse
@@ -176,7 +176,7 @@ Describe 'EntraHelpers module' {
         }
         It 'creates with a generated password, no expiry and the right mailNickname, and the plan hides the password' {
             Start-M365ChangeRecording
-            $r = New-M365CloudUser -UserPrincipalName svc-x@t.onmicrosoft.com -DisplayName X -PasswordLength 40 6>$null
+            $r = New-M365CloudUser -UserPrincipalName svc-x@tenant.example -DisplayName X -PasswordLength 40 6>$null
             $rec = Stop-M365ChangeRecording
             $r.Created | Should -BeTrue
             $r.Password.Length | Should -Be 40
@@ -191,7 +191,7 @@ Describe 'EntraHelpers module' {
         }
         It 'plans under -WhatIf, writes nothing and returns no password' {
             Start-M365ChangeRecording
-            $r = New-M365CloudUser -UserPrincipalName svc-x@t.onmicrosoft.com -DisplayName X -WhatIf
+            $r = New-M365CloudUser -UserPrincipalName svc-x@tenant.example -DisplayName X -WhatIf
             $rec = Stop-M365ChangeRecording
             $global:G.Writes.Count | Should -Be 0
             @($rec.Status) | Should -Be @('Planned')
@@ -200,12 +200,12 @@ Describe 'EntraHelpers module' {
             $r.Password | Should -BeNullOrEmpty
         }
         It 'escapes an apostrophe in the UPN filter' {
-            $null = New-M365CloudUser -UserPrincipalName "o'brien@t.onmicrosoft.com" -DisplayName X -WhatIf
-            $global:G.Reads[0] | Should -BeLike "*userPrincipalName eq 'o''brien@t.onmicrosoft.com'*"
+            $null = New-M365CloudUser -UserPrincipalName "o'brien@tenant.example" -DisplayName X -WhatIf
+            $global:G.Reads[0] | Should -BeLike "*userPrincipalName eq 'o''brien@tenant.example'*"
         }
         It 'does not read a failed lookup as "not found"' {
             $global:G.Fail['Get-MgUser'] = 'Graph 503'
-            { New-M365CloudUser -UserPrincipalName svc@t.onmicrosoft.com -DisplayName X } | Should -Throw '*503*'
+            { New-M365CloudUser -UserPrincipalName svc@tenant.example -DisplayName X } | Should -Throw '*503*'
             $global:G.Writes.Count | Should -Be 0
         }
     }
@@ -293,7 +293,7 @@ Describe 'EntraHelpers module' {
         }
         It 'plans under -WhatIf (placeholder user too), with the tenant and the full PATCH in the plan, and writes nothing' {
             Start-M365ChangeRecording
-            $r = @(Add-M365ConditionalAccessExclusion -UserId (New-M365Placeholder 'id of the new account') -UserLabel 'bg@t.onmicrosoft.com' -WhatIf)
+            $r = @(Add-M365ConditionalAccessExclusion -UserId (New-M365Placeholder 'id of the new account') -UserLabel 'bg@tenant.example' -WhatIf)
             $rec = Stop-M365ChangeRecording
             $global:G.Writes.Count | Should -Be 0
             @($r.Result) | Should -Be @('Planned', 'Planned')
@@ -301,7 +301,7 @@ Describe 'EntraHelpers module' {
             $rec[0].Text | Should -Match "^\[contoso\.onmicrosoft\.com\] Invoke-MgGraphRequest -Method 'PATCH' -Uri '.+/policies/p1' -Body "
             $rec[0].Text | Should -Match 'excludeGuestsOrExternalUsers = @\{'
             $rec[0].Text | Should -Match "excludeUsers = @\('u-old', <id of the new account>\)"
-            $rec[0].Action | Should -Match "Exclude bg@t.onmicrosoft.com from Conditional Access policy 'Require MFA'"
+            $rec[0].Action | Should -Match "Exclude bg@tenant.example from Conditional Access policy 'Require MFA'"
         }
     }
 
@@ -440,16 +440,16 @@ Describe 'EntraHelpers module' {
             $r.Sku | Should -Be 'SPE_E3'
         }
         It 'removes only direct licenses and reports group-assigned ones' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane -States @([pscustomobject]@{ SkuId = 's1'; AssignedByGroup = $null }, [pscustomobject]@{ SkuId = 's2'; AssignedByGroup = 'g1' })))
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane -States @([pscustomobject]@{ SkuId = 's1'; AssignedByGroup = $null }, [pscustomobject]@{ SkuId = 's2'; AssignedByGroup = 'g1' })))
             $global:G.Skus = @([pscustomobject]@{ SkuId = 's1'; SkuPartNumber = 'SPE_E3' }, [pscustomobject]@{ SkuId = 's2'; SkuPartNumber = 'VISIO' })
-            $r = Remove-M365UserLicense -UserPrincipalName jane@c.com -WarningAction SilentlyContinue 6>$null
+            $r = Remove-M365UserLicense -UserPrincipalName jane@customer.example -WarningAction SilentlyContinue 6>$null
             $r.Removed | Should -Be @('SPE_E3')
             $r.GroupAssigned | Should -Be @('VISIO')
             $global:G.Writes[0].Params.RemoveLicenses | Should -Be @('s1')
         }
         It 'does not call Set-MgUserLicense under -WhatIf, and reports nothing as removed' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane -States @([pscustomobject]@{ SkuId = 's1'; AssignedByGroup = $null })))
-            $r = Remove-M365UserLicense -UserPrincipalName jane@c.com -WhatIf
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane -States @([pscustomobject]@{ SkuId = 's1'; AssignedByGroup = $null })))
+            $r = Remove-M365UserLicense -UserPrincipalName jane@customer.example -WhatIf
             $global:G.Writes.Count | Should -Be 0
             $r.Removed.Count | Should -Be 0
             $r.ToRemove | Should -Be @('s1')
@@ -459,14 +459,14 @@ Describe 'EntraHelpers module' {
 
     Context 'Disable-M365UserSignIn' {
         It 'plans block and revoke under -WhatIf without writing, and runs both for real' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane))
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane))
             Start-M365ChangeRecording
-            $null = Disable-M365UserSignIn -UserPrincipalName jane@c.com -WhatIf
+            $null = Disable-M365UserSignIn -UserPrincipalName jane@customer.example -WhatIf
             $rec = Stop-M365ChangeRecording
             $global:G.Writes.Count | Should -Be 0
             $rec[0].Text | Should -Be "[contoso.onmicrosoft.com] Update-MgUser -UserId '$($script:Id.jane)' -BodyParameter @{ accountEnabled = `$false }"
             $rec[1].Text | Should -Be "[contoso.onmicrosoft.com] Revoke-MgUserSignInSession -UserId '$($script:Id.jane)'"
-            $r = Disable-M365UserSignIn -UserPrincipalName jane@c.com 6>$null
+            $r = Disable-M365UserSignIn -UserPrincipalName jane@customer.example 6>$null
             $r.Disabled | Should -BeTrue
             $r.SessionsRevoked | Should -BeTrue
             & $script:Writes | Should -Be @('Update-MgUser', 'Revoke-MgUserSignInSession')
@@ -481,8 +481,8 @@ Describe 'EntraHelpers module' {
             )
         }
         It 'assigns only SKUs the user lacks and matches names case-insensitively' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane -Skus 'e3'))
-            $r = Add-M365UserLicense -UserPrincipalName jane@c.com -Sku 'spb', 'SPE_E3' 6>$null
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane -Skus 'e3'))
+            $r = Add-M365UserLicense -UserPrincipalName jane@customer.example -Sku 'spb', 'SPE_E3' 6>$null
             $r.Assigned | Should -Be @('SPB')
             $r.AlreadyHad | Should -Be @('SPE_E3')
             $add = @($global:G.Writes[0].Params.AddLicenses)
@@ -490,29 +490,29 @@ Describe 'EntraHelpers module' {
             $add[0].skuId | Should -Be 'spb'
         }
         It 'reports "already licensed" instead of throwing when every SKU is held' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane -Skus 'spb'))
-            $r = Add-M365UserLicense -UserPrincipalName jane@c.com -Sku 'SPB'
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane -Skus 'spb'))
+            $r = Add-M365UserLicense -UserPrincipalName jane@customer.example -Sku 'SPB'
             $r.Status | Should -Be 'AlreadyLicensed'
             $r.Assigned.Count | Should -Be 0
             $global:G.Writes.Count | Should -Be 0
         }
         It 'refuses a SKU the tenant does not own and names the available ones' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane))
-            { Add-M365UserLicense -UserPrincipalName jane@c.com -Sku 'VISIO' } | Should -Throw '*not in this tenant*SPB*'
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane))
+            { Add-M365UserLicense -UserPrincipalName jane@customer.example -Sku 'VISIO' } | Should -Throw '*not in this tenant*SPB*'
         }
         It 'requires a usage location' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane -Usage ''))
-            { Add-M365UserLicense -UserPrincipalName jane@c.com -Sku 'SPB' } | Should -Throw '*usageLocation*'
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane -Usage ''))
+            { Add-M365UserLicense -UserPrincipalName jane@customer.example -Sku 'SPB' } | Should -Throw '*usageLocation*'
         }
         It 'warns when a SKU has no free units but still attempts' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane))
-            $r = Add-M365UserLicense -UserPrincipalName jane@c.com -Sku 'SPE_E3' -WarningVariable w -WarningAction SilentlyContinue 6>$null
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane))
+            $r = Add-M365UserLicense -UserPrincipalName jane@customer.example -Sku 'SPE_E3' -WarningVariable w -WarningAction SilentlyContinue 6>$null
             $w | Should -Match 'No free units'
             $r.Assigned | Should -Be @('SPE_E3')
         }
         It 'plans for a user an earlier dry-run step would create (placeholder id), without looking the user up' {
             Start-M365ChangeRecording
-            $r = Add-M365UserLicense -UserPrincipalName new@c.com -Sku 'SPB' -UserId (New-M365Placeholder 'id of the new user') -WhatIf
+            $r = Add-M365UserLicense -UserPrincipalName new@customer.example -Sku 'SPB' -UserId (New-M365Placeholder 'id of the new user') -WhatIf
             $rec = Stop-M365ChangeRecording
             $r.Status | Should -Be 'Planned'
             $rec[0].Text | Should -Be "[contoso.onmicrosoft.com] Set-MgUserLicense -UserId <id of the new user> -AddLicenses @(@{ skuId = 'spb' }) -RemoveLicenses @()"
@@ -522,7 +522,7 @@ Describe 'EntraHelpers module' {
 
     Context 'Add-M365GroupMember (H6)' {
         BeforeEach {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane))
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane))
             $global:G.Groups = @(
                 [pscustomobject]@{ Id = $script:Id.sales1; DisplayName = 'Sales'; GroupTypes = @('Unified'); MailEnabled = $true; SecurityEnabled = $false; OnPremisesSyncEnabled = $null }
                 [pscustomobject]@{ Id = $script:Id.sales2; DisplayName = 'Sales'; GroupTypes = @(); MailEnabled = $false; SecurityEnabled = $true; OnPremisesSyncEnabled = $null }
@@ -531,23 +531,23 @@ Describe 'EntraHelpers module' {
             )
         }
         It 'refuses a name that matches two groups and lists both ids, before any change' {
-            { Add-M365GroupMember -UserPrincipalName jane@c.com -GroupName 'All Staff', 'Sales' } | Should -Throw "*2 groups are named 'Sales'*$($script:Id.sales1)*$($script:Id.sales2)*"
+            { Add-M365GroupMember -UserPrincipalName jane@customer.example -GroupName 'All Staff', 'Sales' } | Should -Throw "*2 groups are named 'Sales'*$($script:Id.sales1)*$($script:Id.sales2)*"
             $global:G.Writes.Count | Should -Be 0
         }
         It 'accepts a group id' {
-            $r = @(Add-M365GroupMember -UserPrincipalName jane@c.com -GroupName $script:Id.sales2 6>$null)
+            $r = @(Add-M365GroupMember -UserPrincipalName jane@customer.example -GroupName $script:Id.sales2 6>$null)
             $r[0].Added | Should -BeTrue
             $global:G.Writes[0].Params.GroupId | Should -Be $script:Id.sales2
             $global:G.Writes[0].Params.DirectoryObjectId | Should -Be $script:Id.jane
         }
         It 'refuses a missing group or a distribution list before the first change' {
-            { Add-M365GroupMember -UserPrincipalName jane@c.com -GroupName 'All Staff', 'Nope' } | Should -Throw "*No group is named 'Nope'*"
-            { Add-M365GroupMember -UserPrincipalName jane@c.com -GroupName 'All Staff', 'Office DL' } | Should -Throw '*distribution list*'
+            { Add-M365GroupMember -UserPrincipalName jane@customer.example -GroupName 'All Staff', 'Nope' } | Should -Throw "*No group is named 'Nope'*"
+            { Add-M365GroupMember -UserPrincipalName jane@customer.example -GroupName 'All Staff', 'Office DL' } | Should -Throw '*distribution list*'
             $global:G.Writes.Count | Should -Be 0
         }
         It 'skips an existing membership' {
             $global:G.Members[$script:Id.staff] = @($script:Id.jane)
-            $r = @(Add-M365GroupMember -UserPrincipalName jane@c.com -GroupName 'All Staff')
+            $r = @(Add-M365GroupMember -UserPrincipalName jane@customer.example -GroupName 'All Staff')
             $r[0].Reason | Should -Be 'already a member'
             $global:G.Writes.Count | Should -Be 0
         }
@@ -555,7 +555,7 @@ Describe 'EntraHelpers module' {
 
     Context 'Get-M365UserReview (M12)' {
         BeforeEach {
-            foreach ($u in 'jane', 'bob', 'mgr') { $global:G.Users.Add((New-FakeUser "$u@c.com" $script:Id[$u])) }
+            foreach ($u in 'jane', 'bob', 'mgr') { $global:G.Users.Add((New-FakeUser "$u@customer.example" $script:Id[$u])) }
             $global:G.RoleDefs = @([pscustomobject]@{ Id = $script:Id.ga; DisplayName = 'Global Administrator' }, [pscustomobject]@{ Id = $script:Id.exo; DisplayName = 'Exchange Administrator' })
             $global:G.RoleAssignments = @(
                 [pscustomobject]@{ PrincipalId = $script:Id.admins; RoleDefinitionId = $script:Id.exo; DirectoryScopeId = '/'; Principal = [pscustomobject]@{ AdditionalProperties = @{ '@odata.type' = '#microsoft.graph.group'; displayName = 'Exchange Admins' } } }
@@ -567,9 +567,9 @@ Describe 'EntraHelpers module' {
         }
         It 'counts group-held and PIM-eligible roles as admin' {
             $rows = @(Get-M365UserReview)
-            $jane = $rows | Where-Object UserPrincipalName -eq 'jane@c.com'
-            $bob = $rows | Where-Object UserPrincipalName -eq 'bob@c.com'
-            $mgr = $rows | Where-Object UserPrincipalName -eq 'mgr@c.com'
+            $jane = $rows | Where-Object UserPrincipalName -eq 'jane@customer.example'
+            $bob = $rows | Where-Object UserPrincipalName -eq 'bob@customer.example'
+            $mgr = $rows | Where-Object UserPrincipalName -eq 'mgr@customer.example'
             $jane.IsAdmin | Should -BeTrue
             $jane.EligibleRoles | Should -Be @('Global Administrator')
             $bob.IsAdmin | Should -BeTrue
@@ -579,21 +579,21 @@ Describe 'EntraHelpers module' {
         It 'marks IsAdmin Unknown (never False) when the roles cannot be read' {
             $global:G.Fail['Get-MgRoleManagementDirectoryRoleAssignment'] = 'Forbidden'
             $rows = @(Get-M365UserReview -WarningVariable w -WarningAction SilentlyContinue)
-            ($rows | Where-Object UserPrincipalName -eq 'mgr@c.com').IsAdmin | Should -Be 'Unknown'
-            ($rows | Where-Object UserPrincipalName -eq 'jane@c.com').IsAdmin | Should -BeTrue
+            ($rows | Where-Object UserPrincipalName -eq 'mgr@customer.example').IsAdmin | Should -Be 'Unknown'
+            ($rows | Where-Object UserPrincipalName -eq 'jane@customer.example').IsAdmin | Should -BeTrue
             "$w" | Should -Match 'Could not read role assignments'
         }
         It 'treats "PIM needs a premium license" as no eligible roles, with a warning' {
             $global:G.Fail['Get-MgRoleManagementDirectoryRoleEligibilitySchedule'] = 'AadPremiumLicenseRequired: the tenant needs an Entra ID P2 license'
             $rows = @(Get-M365UserReview -WarningVariable w -WarningAction SilentlyContinue)
-            ($rows | Where-Object UserPrincipalName -eq 'mgr@c.com').IsAdmin | Should -Be $false
+            ($rows | Where-Object UserPrincipalName -eq 'mgr@customer.example').IsAdmin | Should -Be $false
             "$w" | Should -Match 'PIM eligibility not available'
         }
     }
 
     Context 'New-M365User (C2 building block, lows)' {
         It 'creates a person with forced password change and the usage location' {
-            $r = New-M365User -UserPrincipalName jane.doe@c.com -DisplayName 'Jane Doe' -GivenName Jane -Surname Doe -JobTitle 'OM' 6>$null
+            $r = New-M365User -UserPrincipalName jane.doe@customer.example -DisplayName 'Jane Doe' -GivenName Jane -Surname Doe -JobTitle 'OM' 6>$null
             $r.Created | Should -BeTrue
             $r.Password.Length | Should -Be 20
             $b = $global:G.Writes[0].Params.BodyParameter
@@ -605,49 +605,49 @@ Describe 'EntraHelpers module' {
             $b.ContainsKey('passwordPolicies') | Should -BeFalse
         }
         It 'reports an existing user (AlreadyExisted) and changes nothing' {
-            $global:G.Users.Add((New-FakeUser 'jane.doe@c.com' $script:Id.jane))
-            $r = New-M365User -UserPrincipalName jane.doe@c.com -DisplayName 'Jane Doe' -WarningAction SilentlyContinue
+            $global:G.Users.Add((New-FakeUser 'jane.doe@customer.example' $script:Id.jane))
+            $r = New-M365User -UserPrincipalName jane.doe@customer.example -DisplayName 'Jane Doe' -WarningAction SilentlyContinue
             $r.Created | Should -BeFalse
             $r.AlreadyExisted | Should -BeTrue
             $r.Id | Should -Be $script:Id.jane
             $global:G.Writes.Count | Should -Be 0
         }
         It 'stops before creating anything when the manager does not exist' {
-            { New-M365User -UserPrincipalName jane.doe@c.com -DisplayName 'Jane Doe' -ManagerUpn nobody@c.com } | Should -Throw '*Manager nobody@c.com not found*'
+            { New-M365User -UserPrincipalName jane.doe@customer.example -DisplayName 'Jane Doe' -ManagerUpn nobody@customer.example } | Should -Throw '*Manager nobody@customer.example not found*'
             $global:G.Writes.Count | Should -Be 0
         }
         It 'keeps the created user and password when setting the manager fails' {
-            $global:G.Users.Add((New-FakeUser 'boss@c.com' $script:Id.mgr))
+            $global:G.Users.Add((New-FakeUser 'boss@customer.example' $script:Id.mgr))
             $global:G.Fail['Set-MgUserManagerByRef'] = 'Graph 500'
-            $r = New-M365User -UserPrincipalName jane.doe@c.com -DisplayName 'Jane Doe' -ManagerUpn boss@c.com -WarningAction SilentlyContinue 6>$null
+            $r = New-M365User -UserPrincipalName jane.doe@customer.example -DisplayName 'Jane Doe' -ManagerUpn boss@customer.example -WarningAction SilentlyContinue 6>$null
             $r.Created | Should -BeTrue
             $r.Password.Length | Should -Be 20
             $r.ManagerSet | Should -BeFalse
             $r.ManagerError | Should -Match 'Graph 500'
         }
         It 'plans the user and the manager (placeholder id) under -WhatIf' {
-            $global:G.Users.Add((New-FakeUser 'boss@c.com' $script:Id.mgr))
+            $global:G.Users.Add((New-FakeUser 'boss@customer.example' $script:Id.mgr))
             Start-M365ChangeRecording
-            $r = New-M365User -UserPrincipalName jane.doe@c.com -DisplayName 'Jane Doe' -ManagerUpn boss@c.com -WhatIf
+            $r = New-M365User -UserPrincipalName jane.doe@customer.example -DisplayName 'Jane Doe' -ManagerUpn boss@customer.example -WhatIf
             $rec = Stop-M365ChangeRecording
             $global:G.Writes.Count | Should -Be 0
             $r.WhatIf | Should -BeTrue
             $r.AlreadyExisted | Should -BeFalse
-            $rec[1].Text | Should -Match "Set-MgUserManagerByRef -UserId <id of the new user jane\.doe@c\.com> -BodyParameter @\{ '@odata\.id' = '.+/users/$($script:Id.mgr)' \}"
+            $rec[1].Text | Should -Match "Set-MgUserManagerByRef -UserId <id of the new user jane\.doe@customer\.example> -BodyParameter @\{ '@odata\.id' = '.+/users/$($script:Id.mgr)' \}"
         }
     }
 
     Context 'New-M365TemporaryAccessPass' {
         It 'returns the pass even when Graph sends no start time' {
-            $global:G.Users.Add((New-FakeUser 'jane@c.com' $script:Id.jane))
-            $r = New-M365TemporaryAccessPass -UserPrincipalName jane@c.com 6>$null
+            $global:G.Users.Add((New-FakeUser 'jane@customer.example' $script:Id.jane))
+            $r = New-M365TemporaryAccessPass -UserPrincipalName jane@customer.example 6>$null
             $r.Pass | Should -Be 'TAP-123'
             $r.Issued | Should -BeTrue
             $r.ExpiresAt | Should -BeGreaterThan (Get-Date)
         }
         It 'plans for a placeholder user under -WhatIf' {
             Start-M365ChangeRecording
-            $r = New-M365TemporaryAccessPass -UserPrincipalName new@c.com -UserId (New-M365Placeholder 'id of the new user') -WhatIf
+            $r = New-M365TemporaryAccessPass -UserPrincipalName new@customer.example -UserId (New-M365Placeholder 'id of the new user') -WhatIf
             $rec = Stop-M365ChangeRecording
             $r.Issued | Should -BeFalse
             $rec[0].Text | Should -Be '[contoso.onmicrosoft.com] New-MgUserAuthenticationTemporaryAccessPassMethod -UserId <id of the new user> -BodyParameter @{ isUsableOnce = $true; lifetimeInMinutes = 480 }'

@@ -166,6 +166,7 @@ function Assert-M365ReadOnlyCommand {
     #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Line)
+    $ErrorActionPreference = 'Stop'
     if ($Line -match '[\r\n\u0085\u2028\u2029]') { throw 'Safe mode requires a single physical command line.' }
     $parseErrors = $null
     $ast = [System.Management.Automation.Language.Parser]::ParseInput($Line, [ref]$null, [ref]$parseErrors)

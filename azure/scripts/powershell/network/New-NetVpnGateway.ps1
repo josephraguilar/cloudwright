@@ -35,7 +35,7 @@ param(
     [Parameter()] [ValidateSet('VpnGw1AZ', 'VpnGw2AZ', 'VpnGw3AZ', 'VpnGw1', 'VpnGw2')] [string]$Sku = 'VpnGw1AZ'
 )
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

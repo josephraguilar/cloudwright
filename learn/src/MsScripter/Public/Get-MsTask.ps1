@@ -10,6 +10,7 @@ function Get-MsTask {
         [Parameter(Mandatory, Position = 0)] [string]$Id,
         [Parameter()] [string]$CatalogRoot = $script:CatalogRoot
     )
+    $ErrorActionPreference = 'Stop'
     $task = Get-MsTaskCatalog -CatalogRoot $CatalogRoot | Where-Object Id -eq $Id
     if (-not $task) { throw "No task with Id '$Id' under $CatalogRoot." }
     return $task

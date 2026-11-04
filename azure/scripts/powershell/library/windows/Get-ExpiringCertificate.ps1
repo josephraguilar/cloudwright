@@ -9,7 +9,7 @@
 #>
 param([string]$Days = '30')
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $limit = (Get-Date).AddDays([int]$Days)
 $hits = foreach ($store in 'Cert:\LocalMachine\My', 'Cert:\LocalMachine\Remote Desktop') {

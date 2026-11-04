@@ -30,7 +30,7 @@ param(
     [Parameter(Mandatory)] [ValidateRange(1, 102400)] [int]$QuotaGiB
 )
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

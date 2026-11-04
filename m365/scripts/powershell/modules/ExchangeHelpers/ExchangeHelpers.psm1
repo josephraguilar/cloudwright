@@ -1373,7 +1373,7 @@ function Set-M365MailboxForwarding {
     .DESCRIPTION
         -ForwardTo must resolve to exactly one recipient in this tenant; that recipient is set
         as ForwardingAddress. A target that is not found stops the function unless
-        -AllowExternal is given, so a typo (manager@cotnoso.com) never becomes silent
+        -AllowExternal is given, so a typo (manager@cotnoso.example) never becomes silent
         external forwarding. A mail contact or mail user whose address is outside the
         tenant counts as external too. An address in one of the tenant's own domains that
         no recipient has is always refused (a typo of an internal address). The outbound

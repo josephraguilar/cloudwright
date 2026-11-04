@@ -37,8 +37,8 @@ that variable is unset. Keep this directory: it also holds your local settings a
 generated output. Subsequent bootstrap runs reuse it and preserve those files;
 they do not automatically upgrade the snapshot. For a later snapshot, use a new
 `-InstallPath` and transfer only the local settings you need from the old directory.
-The new bootstrap refuses older cached snapshots without mandatory Cloudwright safe
-mode, including the earlier M365-only candidate. Existing installed commands and deployed
+The new bootstrap requires safety baseline 3 and refuses older cached snapshots,
+including the earlier candidates with suppressible refusal errors. Existing installed commands and deployed
 runbooks are not upgraded automatically.
 
 After the first install, just run `cloudwright` in any PowerShell 7 session. To
@@ -113,7 +113,8 @@ Azure administration is refused even with `-WhatIf`; M365 mutation scripts also 
 instead of running their legacy dry-run workflows.
 
 Azure entry points refuse execution even when called directly, and its modules refuse
-import. Legacy bodies remain for review behind these unconditional blocks. Bicep and
+import. Each block sets its own error preference before refusing; the tested settings and
+runtime limits are documented in [SAFETY.md](docs/SAFETY.md). Legacy bodies remain for review. Bicep and
 documentation commands are reference material; Cloudwright does not deploy them.
 
 The top-level menu, help, and version do not sign in or install cloud dependencies.

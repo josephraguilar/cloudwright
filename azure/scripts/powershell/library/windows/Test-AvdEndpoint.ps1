@@ -9,7 +9,7 @@
 #>
 param()
 # Mandatory release block: no Azure initialization, authentication, or administration.
-throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.'
+& { $ErrorActionPreference = 'Stop'; throw 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' }
 
 $targets = 'rdbroker.wvd.microsoft.com', 'rdweb.wvd.microsoft.com', 'catalogartifact.azureedge.net', 'login.microsoftonline.com', 'mrsglobalsteus2prod.blob.core.windows.net', 'wvdportalstorageblob.blob.core.windows.net', 'gcs.prod.monitoring.core.windows.net'
 $failed = 0

@@ -5,6 +5,9 @@
 # Usage: ./list-vms.sh [resource-group]
 
 printf '%s\n' 'Cloudwright safe release: Azure/AVD execution is disabled pending a reviewed read-only implementation.' >&2
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 1
+fi
 exit 1
 
 # ---- 1. Safety flags --------------------------------------------------------

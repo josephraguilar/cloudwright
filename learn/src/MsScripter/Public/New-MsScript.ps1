@@ -46,6 +46,7 @@ function New-MsScript {
 
     # Context appears in generated comments as well as quoted commands. Reject
     # comment terminators and line breaks before either output style is rendered.
+    $ErrorActionPreference = 'Stop'
     foreach ($value in $Context.Values) {
         if ("$value" -match '[\r\n\x00\x85\u2028\u2029]|#>') {
             throw 'Context values must be single-line text without a PowerShell comment terminator.'
