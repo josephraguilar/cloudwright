@@ -214,6 +214,15 @@ current real Az modules (360 and 1 skipped without them), root **1,614**, Learn 
 **504**; no analyzer findings across 424 files. Seven mutants of the r2 fixes, including the
 reviewer's S1, S2 and N7, each fail the read-only tests.
 
+The first CI run after publication failed 14 M365 end-to-end read tests. GitHub's runners
+have the Graph SDK installed, and the harness skipped stubbing any name that already
+resolved; looking a name up also imported the Graph module that owns it, so the scripts
+reached the real, signed-out Graph commands ("Authentication needed"). Nothing could reach a
+tenant, but the end-to-end write check was not exercising Graph there. The harness now keeps
+only its own stubs and PowerShell's built-in cmdlets, never looks a name up, and a canary
+fails if any other command the scripts call is not a stub. M365 **505** passed with and
+without the current Graph modules; the old harness with the canary fails under Graph.
+
 Limits: no live tenant has been read; real sign-in, WAM, Lighthouse, ARM's response for the
 AR1 trigger and large estates are unverified. The Windows desktop interface stays disabled.
 This guard cannot constrain other code in the same PowerShell session.

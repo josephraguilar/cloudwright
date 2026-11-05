@@ -108,10 +108,16 @@ BeforeAll {
             if ($n -and $n -match '^[A-Za-z]+-[A-Za-z0-9]+$' -and -not $known.ContainsKey($n)) { $known[$n] = $false }
         }
     }
+    #   GOTCHA Keep only the stubs above and PowerShell's own cmdlets. An installed Graph or
+    #          Exchange module (GitHub's runners have Graph) must not replace a stub, and
+    #          Get-Command -Name imports the module that owns a name, so never look one up.
+    $script:BuiltIn = @{}
+    Get-Command -CommandType Cmdlet -Module Microsoft.PowerShell.* | ForEach-Object { $script:BuiltIn[$_.Name] = $true }
+    $script:Called = @($known.Keys | Where-Object { -not $known[$_] })
     $script:Stubbed = @()
-    foreach ($n in @($known.Keys | Where-Object { -not $known[$_] })) {
-        if (Get-Command -Name $n -CommandType Function -ErrorAction SilentlyContinue) { continue }
-        if (Get-Command -Name $n -CommandType Cmdlet -ErrorAction SilentlyContinue) { continue }
+    foreach ($n in $script:Called) {
+        $defined = Get-Item -LiteralPath "Function:\$n" -ErrorAction SilentlyContinue
+        if (($defined -and -not $defined.Module) -or $script:BuiltIn.ContainsKey($n)) { continue }
         $verb = ($n -split '-')[0]
         $body = if ($verb -in 'Get', 'Test', 'Find', 'Search', 'Resolve', 'Select') { "`$global:E2E.Reads.Add('$n'); return" } else { "`$a = ConvertFrom-E2EArgs `$args; Add-E2EWrite '$n' `$a; [pscustomobject]@{ Id = 'stub-id'; Identity = 'stub-id' }" }
         Set-Item -Path "function:global:$n" -Value ([scriptblock]::Create($body))
@@ -229,6 +235,14 @@ Describe 'E2E harness canaries' {
     It 'refuses an Exchange command not imported by the connection' {
         Connect-ExchangeOnline -CommandName @('Get-AcceptedDomain')
         { Get-MailContact -Identity 'reader@contoso.example' } | Should -Throw '*was not imported*'
+    }
+    It 'stubs every non-PowerShell command the scripts call, even with the real SDK installed' {
+        $real = foreach ($n in $script:Called) {
+            if ($script:BuiltIn.ContainsKey($n)) { continue }
+            $f = Get-Item -LiteralPath "Function:\$n" -ErrorAction SilentlyContinue
+            if (-not $f -or $f.Module) { $n }
+        }
+        @($real) | Should -BeNullOrEmpty
     }
 }
 
